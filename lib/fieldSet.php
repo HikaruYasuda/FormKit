@@ -1,4 +1,7 @@
 <?php
+
+namespace FormKit;
+
 /**
  * フィールドセットクラス
  * @package FormKit
@@ -6,12 +9,12 @@
  * @since PHP 5.3
  * @version 1.0.0
  */
-class FormKit_FieldSet implements Iterator {
-	/** @var FormKit_Field[] フィールド要素 */
+class FieldSet implements \Iterator {
+	/** @var Field[] フィールド要素 */
 	protected $fields = array();
 
 	/**
-	 * @param self|FormKit_Field[]|FormKit_Field|string[]|string $field
+	 * @param self|Field[]|Field|string[]|string $field
 	 */
 	public function __construct($field = null)
 	{
@@ -70,10 +73,10 @@ class FormKit_FieldSet implements Iterator {
 	}
 
 	/**
-	 * @param FormKit_Field $field
+	 * @param Field $field
 	 * @return static
 	 */
-	public function add_field_object(FormKit_Field $field)
+	public function add_field_object(Field $field)
 	{
 		$this->fields[$field->name()] = $field;
 		return $this;
@@ -97,7 +100,7 @@ class FormKit_FieldSet implements Iterator {
 		$type = isset($structure[0]) ? $structure[0] : '';
 		$label = isset($structure[1]) ? $structure[1] : '';
 
-		/** @var FormKit_Field $field */
+		/** @var Field $field */
 		$field = FormKit::call_func('Field', $field_name, $type, $label);
 		foreach ($structure as $key => $val)
 		{
@@ -120,9 +123,9 @@ class FormKit_FieldSet implements Iterator {
 	 * <br>, 'name5' => array('type' => 'name5type', more attributes...)
 	 * <br>))
 	 * <br>add('name5')
-	 * @param self|FormKit_Field|array|string $field
+	 * @param self|Field|array|string $field
 	 * @return static
-	 * @throws InvalidArgumentException
+	 * @throws \InvalidArgumentException
 	 */
 	public function add($field)
 	{
@@ -134,7 +137,7 @@ class FormKit_FieldSet implements Iterator {
 				return $this->add_fieldset($field);
 			}
 			// case Field instance
-			if ($field instanceof FormKit_Field)
+			if ($field instanceof Field)
 			{
 				return $this->add_field_object($field);
 			}
@@ -144,7 +147,7 @@ class FormKit_FieldSet implements Iterator {
 			foreach ($field as $key => $val)
 			{
 				// case Field instance array
-				if (is_object($val) and $val instanceof FormKit_Field)
+				if (is_object($val) and $val instanceof Field)
 				{
 					$this->add_field_object($val);
 				}
@@ -160,7 +163,7 @@ class FormKit_FieldSet implements Iterator {
 				}
 				else
 				{
-					throw new InvalidArgumentException;
+					throw new \InvalidArgumentException;
 				}
 			}
 			return $this;
@@ -171,7 +174,7 @@ class FormKit_FieldSet implements Iterator {
 			return $this->add_field_structure($field);
 		}
 
-		throw new InvalidArgumentException;
+		throw new \InvalidArgumentException;
 	}
 
 	/**
@@ -323,8 +326,8 @@ class FormKit_FieldSet implements Iterator {
 			$strategies[] = array(self::_get_filtering_method($piece_of_expr), $piece_of_expr);
 		}
 
-		$field_set = new FormKit_FieldSet;
-		foreach ($this->_field_list as $index => $field)
+		$field_set = new static;
+		foreach ($this->fields as $index => $field)
 		{
 			if (self::$strategies[0]($index, $field, $strategies[1]))
 			{
@@ -366,7 +369,7 @@ class FormKit_FieldSet implements Iterator {
 	/**
 	 * フィールドリストからフィールドを取得します
 	 * @param string[]|string|int $field_name 取得するフィールドのフィールド名、またはフィールド名のリスト。
-	 * @return FormKit_FieldSet|FormKit_Field 引数がフィールド名の場合は指定したフィールドを返します。
+	 * @return static|Field 引数がフィールド名の場合は指定したフィールドを返します。
 	 * 引数がフィールド名リストの場合はフィールド名をキーにしたフィールドの配列、
 	 * 引数がない、またはNULLの場合は全フィールドの配列を返します。
 	 * 指定したフィールド名のフィールドが存在しない場合はNULLを返します。
@@ -397,12 +400,12 @@ class FormKit_FieldSet implements Iterator {
 		{
 			return $this->to_array();
 		}
-		throw new InvalidArgumentException();
+		throw new \InvalidArgumentException();
 	}
 
 	/**
 	 * @param int $index
-	 * @return FormKit_Field
+	 * @return Field
 	 */
 	public function get_by_index($index)
 	{
@@ -421,7 +424,7 @@ class FormKit_FieldSet implements Iterator {
 	}
 
 	/**
-	 * @return FormKit_Field[]
+	 * @return Field[]
 	 */
 	public function to_array()
 	{

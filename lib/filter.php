@@ -1,4 +1,7 @@
 <?php
+
+namespace FormKit;
+
 /**
  * フォームフィルタクラス
  * @package FormKit
@@ -11,7 +14,7 @@ class FormKit_Filter {
 	 * クエリリストを使ってフィルタリングします
 	 * @param mixed $value
 	 * @param array $filters
-	 * @param Form_Field $field
+	 * @param Field $field
 	 * @return mixed
 	 */
 	public function filtering($value, $filters, $field)
@@ -28,7 +31,7 @@ class FormKit_Filter {
 	 * @param string $func_name
 	 * @param mixed $value
 	 * @param array $args
-	 * @param Form_Field $field
+	 * @param Field $field
 	 * @return int|string
 	 */
 	public function call($func_name, $value, $args, $field)

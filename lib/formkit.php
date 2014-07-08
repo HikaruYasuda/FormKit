@@ -1,4 +1,7 @@
 <?php
+
+namespace FormKit;
+
 require __DIR__.'/functions.php';
 require __DIR__.'/form.php';
 require __DIR__.'/field.php';
@@ -22,7 +25,7 @@ class FormKit
 	/** @var array  */
 	public $rules = array();
 
-	/** @var FormKit_Form[] */
+	/** @var Form[] */
 	public static $forms = array();
 	/** @var string  */
 	public $current_form = '';
@@ -30,11 +33,11 @@ class FormKit
 	/**
 	 * @param string $name
 	 * @param array $config
-	 * @return FormKit_Form
+	 * @return Form
 	 */
 	public static function Form($name = 'default', $config = null)
 	{
-		static::$forms[$name] = new FormKit_Form($config);
+		static::$forms[$name] = new Form($config);
 		return static::$forms[$name];
 	}
 
@@ -78,11 +81,11 @@ class FormKit
 	/**
 	 * @param string $name
 	 * @param string|callable $test
-	 * @return FormKit_Rule
+	 * @return Rule
 	 */
 	public static function Rule($name, $test/* [, $option[, ..]] */)
 	{
-		$rule = new FormKit_Rule();
+		$rule = new Rule();
 		$rule->name = $name;
 		$rule->tester = $test;
 		$rule->option = array_slice(func_get_args(), 2);
@@ -90,15 +93,15 @@ class FormKit
 	}
 
 	/**
-	 * @param FormKit_Rule $rule
+	 * @param Rule $rule
 	 */
 	public function defRule($rule)
 	{
-		if ($rule instanceof FormKit_Rule)
+		if ($rule instanceof Rule)
 		{
 			$this->rules[$rule->name] = $rule;
 		}
-		throw new InvalidArgumentException;
+		throw new \InvalidArgumentException;
 	}
 
 	// =========================
@@ -114,15 +117,15 @@ class FormKit
 	 * @param $name
 	 * @param string $type
 	 * @param string $label
-	 * @return FormKit_Field
+	 * @return Field
 	 */
 	public static function Field($name, $type = '', $label = '')
 	{
-		if ($name instanceof FormKit_Field)
+		if ($name instanceof Field)
 		{
 			return $name;
 		}
-		$field = new FormKit_Field($name, $type, $label);
+		$field = new Field($name, $type, $label);
 		return $field;
 	}
 
@@ -143,7 +146,7 @@ class FormKit
 		$first_called_class or $first_called_class = get_called_class().'::';
 		if ($func == 'call_func' or $func == 'call_func_array')
 		{
-			throw new Exception('call infinity...');
+			throw new \Exception('call infinity...');
 		}
 		return call_user_func_array($first_called_class.$func, $args);
 	}
@@ -152,19 +155,20 @@ class FormKit
 	 * @param array $array
 	 * @param array $arrays
 	 * @return array
+	 * @throws
 	 */
 	public static function array_extend($array, $arrays/* [, $arrays[, ...]] */)
 	{
 		$arrays = array_slice(func_get_args(), 1);
 		if ( ! is_array($array))
 		{
-			throw new InvalidArgumentException('All arguments must be arrays.');
+			throw new \InvalidArgumentException('All arguments must be arrays.');
 		}
 		foreach ($arrays as $arr)
 		{
 			if ( ! is_array($arr))
 			{
-				throw new InvalidArgumentException('All arguments must be arrays.');
+				throw new \InvalidArgumentException('All arguments must be arrays.');
 			}
 
 			foreach ($arr as $k => $v)

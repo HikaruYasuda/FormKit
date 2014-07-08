@@ -1,13 +1,16 @@
 <?php
+
+namespace FormKit;
+
 /**
  * 入力フィールドクラス
  * @package FormKit
  * @author hikaru
  * @since PHP 5.1
  * @version 1.0.0
- * @method FormKit_Field|mixed default($default = null)
+ * @method static|mixed default($default = null)
  */
-class FormKit_Field {
+class Field {
 	/** @var string フィールド名 */
 	protected $_name;
 	/** @var string 配列インデックスを無視したベース名 */
@@ -64,10 +67,10 @@ class FormKit_Field {
 	 * @param string $name
 	 * @param string $type
 	 * @param string $label
-	 * @return FormKit_Field
+	 * @return static
 	 */
 	public static function make($name, $type = '', $label = '') {
-		return new self($name, $type, $label);
+		return new static($name, $type, $label);
 	}
 
 	/**
@@ -86,7 +89,7 @@ class FormKit_Field {
 			case 'checkbox':
 			case 'radio':
 				foreach ($this->_options as $k => $v) {
-					$html .= '<label><input type="'.$type.'" name="'.$name.'" value="'.$k.'" '.$attribute.'/> '.$v.'</label>';
+					$html .= '<label><input type="' . $type . '" name="'.$name.'" value="'.$k.'" '.$attribute.'/> '.$v.'</label>';
 				}
 				break;
 			case 'select':

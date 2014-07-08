@@ -1,6 +1,8 @@
 <?php
 
-class FormKit_Rule
+namespace FormKit;
+
+class Rule
 {
 	// =========================
 	// global method

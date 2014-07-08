@@ -1,9 +1,11 @@
 <?php
 
+namespace FormKit;
+
 /**
  * Class FormKit_Form
  */
-class FormKit_Form
+class Form
 {
 	// =========================
 	// Life cycle
@@ -13,7 +15,7 @@ class FormKit_Form
 	{
 	}
 
-	/** @var FormKit_FieldSet フィールド要素 */
+	/** @var FieldSet フィールド要素 */
 	public $fieldset;
 
 	/** @var array  */
@@ -68,8 +70,8 @@ class FormKit_Form
 	// =========================
 
 	/**
-	 * @uses FormKit_FieldSet::add()
-	 * @param FormKit_Field|string|FormKit_Field[]|string[]|FormKit_FieldSet $field
+	 * @uses FieldSet::add()
+	 * @param Field|string|Field[]|string[]|FormKit_FieldSet $field
 	 * @return static
 	 */
 	public function add_field($field)
