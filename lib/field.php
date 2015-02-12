@@ -29,7 +29,8 @@ class Field extends FieldCore
 
     public function __toString()
     {
-        return __CLASS__ . "[name={$this->_name},label={$this->_label},value={$this->_value}]";
+        $value = $this->hasValue() ? "value={$this->_getValue()}" : "hasn't value";
+        return __CLASS__ . "[name={$this->_name},label={$this->_label},$value]";
     }
 
     /**
@@ -146,6 +147,19 @@ class Field extends FieldCore
     public function removeRule($rule = null)
     {
         return $this->_clearRule($rule);
+    }
+
+    /**
+     * バリデーションルールが存在するか判定します
+     * @param string $rule
+     * @return bool
+     */
+    public function hasRule($rule = null)
+    {
+        if (is_null($rule)) {
+            return !empty($this->_rules);
+        }
+        return isset($this->_rules[$rule]);
     }
 
     /**
