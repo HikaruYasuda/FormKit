@@ -1,7 +1,5 @@
 <?php
 
-namespace FormKit;
-
 class Rule
 {
 	// =========================

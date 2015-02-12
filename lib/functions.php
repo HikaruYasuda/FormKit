@@ -30,3 +30,4 @@ function fk_is_valid_index($var)
 {
 	return is_int($var) || (is_numeric($var) && ($var === '0' || intval($var)));
 }
+

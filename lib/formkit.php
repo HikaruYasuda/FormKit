@@ -1,13 +1,11 @@
 <?php
 
-namespace FormKit;
-
-require __DIR__.'/functions.php';
-require __DIR__.'/form.php';
-require __DIR__.'/field.php';
-require __DIR__.'/fieldset.php';
-require __DIR__.'/filter.php';
-require __DIR__.'/rule.php';
+require 'functions.php';
+require 'form.php';
+require 'field.php';
+require 'fieldset.php';
+require 'filter.php';
+require 'rule.php';
 
 /**
  * フォームキットクラス
@@ -18,7 +16,6 @@ require __DIR__.'/rule.php';
  */
 class FormKit
 {
-
 	/** @var array  */
 	public $config = array();
 
