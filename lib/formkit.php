@@ -1,11 +1,5 @@
 <?php
-
-require 'functions.php';
-require 'form.php';
-require 'field.php';
-require 'fieldset.php';
-require 'filter.php';
-require 'rule.php';
+namespace FormKit;
 
 /**
  * フォームキットクラス
@@ -16,216 +10,150 @@ require 'rule.php';
  */
 class FormKit
 {
-	/** @var array  */
-	public $config = array();
+    /** @var bool  */
+    public static $strict = false;
 
-	/** @var array  */
-	public $rules = array();
+    /** @var array */
+    public static $rules = array();
 
-	/** @var Form[] */
-	public static $forms = array();
-	/** @var string  */
-	public $current_form = '';
+    /** @var array */
+    public static $filters = array();
 
-	/**
-	 * @param string $name
-	 * @param array $config
-	 * @return Form
-	 */
-	public static function Form($name = 'default', $config = null)
-	{
-		static::$forms[$name] = new Form($config);
-		return static::$forms[$name];
-	}
+    /** @var Form[] */
+    public static $forms = array();
 
-	// =========================
-	// Configuration
-	// =========================
+    /** @var string  */
+    public $current_form = '';
 
-	/**
-	 * @param array $config
-	 * @return array
-	 */
-	public function setConfig(array $config)
-	{
-		return ($this->config = static::array_extend($this->config, $config));
-	}
+    // =========================
+    // life cycle
+    // =========================
 
-	/**
-	 * @param string $item
-	 * @param mixed $value
-	 * @return array
-	 */
-	public function setConfigItem($item, $value)
-	{
-		return $this->setConfig(static::array_path($item, $value));
-	}
+    public static function init()
+    {
 
-	/**
-	 * @param string $item
-	 * @param mixed $default
-	 * @return mixed
-	 */
-	public function configItem($item, $default = null)
-	{
-		return static::array_trace($this->config, $item, $default);
-	}
+    }
 
-	// =========================
-	// Field Rule
-	// =========================
+    public static function registerAutoLoad()
+    {
+        spl_autoload_register(get_called_class().'::loadClass', true, true);
+    }
 
-	/**
-	 * @param string $name
-	 * @param string|callable $test
-	 * @return Rule
-	 */
-	public static function Rule($name, $test/* [, $option[, ..]] */)
-	{
-		$rule = new Rule();
-		$rule->name = $name;
-		$rule->tester = $test;
-		$rule->option = array_slice(func_get_args(), 2);
-		return $rule;
-	}
+    public static function unregisterAutoLoad()
+    {
+        spl_autoload_unregister(get_called_class().'::loadClass');
+    }
 
-	/**
-	 * @param Rule $rule
-	 */
-	public function defRule($rule)
-	{
-		if ($rule instanceof Rule)
-		{
-			$this->rules[$rule->name] = $rule;
-		}
-		throw new \InvalidArgumentException;
-	}
+    // =========================
+    // factory methods
+    // =========================
 
-	// =========================
-	//
-	// =========================
+    /**
+     * @param string $name
+     * @return Form
+     */
+    public static function Form($name = 'default')
+    {
+        static::$forms[$name] = new Form();
+        return static::$forms[$name];
+    }
 
-	public static function FieldSet()
-	{
+    /**
+     * @param $name
+     * @param string $type
+     * @param string $label
+     * @return Field
+     */
+    public static function Field($name, $type = '', $label = '')
+    {
+        return new Field($name, $type, $label);
+    }
 
-	}
+    // =========================
+    // Definition Rule
+    // =========================
 
-	/**
-	 * @param $name
-	 * @param string $type
-	 * @param string $label
-	 * @return Field
-	 */
-	public static function Field($name, $type = '', $label = '')
-	{
-		if ($name instanceof Field)
-		{
-			return $name;
-		}
-		$field = new Field($name, $type, $label);
-		return $field;
-	}
+    /**
+     * @param string $name
+     * @param string|callable $test
+     * @return Rule
+     */
+    public static function Rule($name, $test/* [, $option[, ..]] */)
+    {
+        $rule = new Rule();
+        $rule->name = $name;
+        $rule->tester = $test;
+        $rule->option = array_slice(func_get_args(), 2);
+        return $rule;
+    }
 
+    /**
+     * ルールを定義します
+     *
+     * <pre>
+     * Usage:
+     * FormKit::defRule('naturalNum', function($val) {
+     *   return fk_blankOrNull($val) or ctype_digit((string)$val);
+     * });
+     * FormKit::defRule(array(
+     *   'tel' => function($val) {
+     *     return fk_blankOrNull($val) or preg_match('/^[0-9]{9,11}$/');
+     *   },
+     *   'same' => function($val, $targetName) {
+     *     if (fk_blankOrNull($val)) return true;
+     *     $field = FormKit::inCheckField(); // 適用中のフィールド要素を取得します
+     *     $target = $field->form()->field($targetName);
+     *     return ($target and $val == $target->value());
+     *   },
+     * ));
+     * </pre>
+     * @param string|array $name
+     * @param callable $func
+     */
+    public static function defRule($name, $func = null)
+    {
+        $rules = is_array($name) ? $name : array($name => $func);
+        foreach ($rules as $name => $func) {
+            if (static::$strict) {
+                if (isset(static::$rules[$name])) {
+                    trigger_error('already exists', E_USER_WARNING);
+                }
+                if (!is_callable($func)) {
+                    trigger_error('func was must be callable', E_USER_WARNING);
+                }
+            }
+            is_callable($func) and (static::$rules[$name] = $func);
+        }
+    }
 
+    /**
+     * フィルタを定義します
+     * @param string|array $name
+     * @param callable $func
+     */
+    public static function defFilter($name, $func = null)
+    {
+        $rules = is_array($name) ? $name : array($name => $func);
+        foreach ($rules as $name => $func) {
+            if (static::$strict) {
+                if (isset(static::$rules[$name])) {
+                    trigger_error('already exists', E_USER_WARNING);
+                }
+                if (!is_callable($func)) {
+                    trigger_error('func was must be callable', E_USER_WARNING);
+                }
+            }
+            is_callable($func) and (static::$rules[$name] = $func);
+        }
+    }
 
-	// =========================
-	// utilities
-	// =========================
-
-	final public static function call_func($func)
-	{
-		return static::call_func_array($func, array_slice(func_get_args(), 1));
-	}
-
-	final public static function call_func_array($func, $args)
-	{
-		static $first_called_class;
-		$first_called_class or $first_called_class = get_called_class().'::';
-		if ($func == 'call_func' or $func == 'call_func_array')
-		{
-			throw new \Exception('call infinity...');
-		}
-		return call_user_func_array($first_called_class.$func, $args);
-	}
-
-	/**
-	 * @param array $array
-	 * @param array $arrays
-	 * @return array
-	 * @throws
-	 */
-	public static function array_extend($array, $arrays/* [, $arrays[, ...]] */)
-	{
-		$arrays = array_slice(func_get_args(), 1);
-		if ( ! is_array($array))
-		{
-			throw new \InvalidArgumentException('All arguments must be arrays.');
-		}
-		foreach ($arrays as $arr)
-		{
-			if ( ! is_array($arr))
-			{
-				throw new \InvalidArgumentException('All arguments must be arrays.');
-			}
-
-			foreach ($arr as $k => $v)
-			{
-				// numeric keys are appended
-				if (is_int($k))
-				{
-					array_key_exists($k, $array) ? $array[] = $v : $array[$k] = $v;
-				}
-				elseif (is_array($v) and array_key_exists($k, $array) and is_array($array[$k]))
-				{
-					$array[$k] = static::array_extend($array[$k], $v);
-				}
-				else
-				{
-					$array[$k] = $v;
-				}
-			}
-		}
-
-		return $array;
-	}
-
-	/**
-	 * @param string $item_path
-	 * @param mixed  $value
-	 * @param string $separator
-	 * @return array
-	 */
-	public static function array_path($item_path, $value, $separator = '.')
-	{
-		$paths = explode($separator, $item_path);
-		$array = $value;
-		while ($path = array_pop($paths))
-		{
-			$array = array($path => $array);
-		}
-		return $array;
-	}
-
-	/**
-	 * @param array $array      The source array
-	 * @param string $item_path Path to the array item
-	 * @param mixed $default    The return value if the item isn't found
-	 * @param string $separator Separator for path string
-	 * @return mixed            Item or default if not found
-	 */
-	public static function array_trace($array, $item_path, $default = null, $separator = '.')
-	{
-		$paths = explode($separator, $item_path);
-		$trace = $array;
-		foreach ($paths as $path)
-		{
-			if ( ! array_key_exists($path, $trace))
-			{
-				return $default;
-			}
-			$trace = $trace[$path];
-		}
-		return $trace;
-	}
-
+    public static function loadClass($class)
+    {
+        $paths = explode("\\", ltrim(strtolower($class), "\\"));
+        $package = array_shift($paths);
+        if ($paths and $package == 'formkit') {
+            $path = dirname(__FILE__).DIRECTORY_SEPARATOR.implode(DIRECTORY_SEPARATOR, $paths).'.php';
+            require $path.'';
+        }
+    }
 }

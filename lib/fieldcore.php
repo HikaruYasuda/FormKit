@@ -1,6 +1,7 @@
 <?php
+namespace FormKit;
 
-class FieldCore
+abstract class FieldCore
 {
     /** 未指定を表す定数 */
     const UNSPECIFIED = '!hXT(s8P%hq%';
@@ -109,8 +110,8 @@ class FieldCore
      * @param string|array $rule 追加するルール
      * <br>これらは同じルールを定義します
      * <pre>
-     * $form->_addRule('required|maxLength:50');
-     * $form->_addRule(array(
+     * $field->_addRule('required|maxLength:50');
+     * $field->_addRule(array(
      *     'required',
      *     'maxLength' => 50,
      * ));
@@ -120,23 +121,25 @@ class FieldCore
     public function _addRule($rule)
     {
         if (is_string($rule)) {
-            $rules = self::explode('|', $rule, '\|');
-            foreach ($rules as $rule) {
-                $args = array_map('trim', self::explode(':', $rule, '\:'));
-                $ruleName = array_shift($args);
-                $this->_rules[$ruleName] = $args;
-            }
-        } elseif (is_array($rule)) {
-            foreach ($rule as $key => $aRule) {
-                if (is_string($key)) {
-                    $args = (array)$aRule;
-                    $this->_rules[$key] = $args;
-                } else {
-                    $args = array_map('trim', self::explode(':', $rule, '\:'));
-                    $ruleName = array_shift($args);
-                    $this->_rules[$ruleName] = $args;
+            $rule = fk_escapeExplode('|', $rule, '\|');
+        }
+        if (is_array($rule)) {
+            foreach ($rule as $name => $args) {
+                if (is_int($name)) {
+                    $args = array_map('trim', fk_escapeExplode(':', $name, '\:'));
+                    $name = array_shift($args);
                 }
+                $args = is_null($args) ? array() : (array)$args;
+                if (FormKit::$strict and isset($this->_rules[$name])) {
+                    trigger_error("already exists [$name]", E_USER_WARNING);
+                }
+                if (FormKit::$strict and isset(FormKit::$rules[$name])) {
+                    trigger_error("undefined rule [$name]", E_USER_WARNING);
+                }
+                $this->_rules[$name] = $args;
             }
+        } elseif (FormKit::$strict) {
+            trigger_error('parameter $rule must be a string or an array');
         }
         return $this;
     }
@@ -162,21 +165,12 @@ class FieldCore
     }
 
     /**
-     * ルールをすべて取得します
-     * @return array[]
-     */
-    public function _getRules()
-    {
-        return $this->_rules;
-    }
-
-    /**
      * フィルタを追加します
      * @param string|array $filter 追加するフィルタ
      * <br>これらは同じフィルタを定義します
      * <pre>
-     * $form->_addFilter('trim|replace:is:are');
-     * $form->_addFilter(array(
+     * $field->_addFilter('trim|replace:is:are');
+     * $field->_addFilter(array(
      *     'trim',
      *     'replace' => array('is', 'are'),
      * ));
@@ -186,23 +180,25 @@ class FieldCore
     public function _addFilter($filter)
     {
         if (is_string($filter)) {
-            $filters = self::explode('|', $filter, '\|');
-            foreach ($filters as $filter) {
-                $args = array_map('trim', self::explode(':', $filter, '\|'));
-                $filterName = array_shift($args);
-                $this->_rules[$filterName] = $args;
-            }
-        } elseif (is_array($filter)) {
-            foreach ($filter as $key => $aFilter) {
-                if (is_string($key)) {
-                    $args = (array)$aFilter;
-                    $this->_filters[$key] = $args;
-                } else {
-                    $args = array_map('trim', self::explode(':', $filter, '\:'));
-                    $filterName = array_shift($args);
-                    $this->_filters[$filterName] = $args;
+            $filter = fk_escapeExplode('|', $filter, '\|');
+        }
+        if (is_array($filter)) {
+            foreach ($filter as $name => $args) {
+                if (is_int($name)) {
+                    $args = array_map('trim', fk_escapeExplode(':', $name, '\:'));
+                    $name = array_shift($args);
                 }
+                $args = is_null($args) ? array() : (array)$args;
+                if (FormKit::$strict and isset($this->_filters[$name])) {
+                    trigger_error("already exists [$name]", E_USER_WARNING);
+                }
+                if (FormKit::$strict and isset(FormKit::$filters[$name])) {
+                    trigger_error("undefined rule [$name]", E_USER_WARNING);
+                }
+                $this->_filters[$name] = $args;
             }
+        } elseif (FormKit::$strict) {
+            trigger_error('parameter $filter must be a string or an array');
         }
         return $this;
     }
@@ -228,15 +224,6 @@ class FieldCore
     }
 
     /**
-     * フィルタをすべて取得します
-     * @return array[]
-     */
-    public function _getFilters()
-    {
-        return $this->_filters;
-    }
-
-    /**
      * 属性値を設定します
      * @param string $name
      * @param mixed $value
@@ -253,6 +240,9 @@ class FieldCore
                 return $this;
             case 'value':
                 return $this->_setValue($value);
+        }
+        if (FormKit::$strict and isset($this->_attributes[$name])) {
+            trigger_error("already exists [$name]", E_USER_WARNING);
         }
         $this->_attributes[$name] = $value;
         return $this;
@@ -279,12 +269,12 @@ class FieldCore
      */
     public function _clearAttribute($name = null)
     {
-        if ($name) {
+        if (is_null($name)) {
+            $this->_attributes = array();
+        } else {
             if (array_key_exists($name, $this->_attributes)) {
                 unset($this->_attributes[$name]);
             }
-        } else {
-            $this->_attributes = array();
         }
         return $this;
     }
@@ -329,7 +319,26 @@ class FieldCore
      */
     public function _setTag($name, $value)
     {
+        if (FormKit::$strict and isset($this->_tags[$name])) {
+            trigger_error('already exists', E_USER_WARNING);
+        }
         $this->_tags[$name] = $value;
+        return $this;
+    }
+
+    /**
+     * @param $name
+     * @return static
+     */
+    public function _clearTag($name = null)
+    {
+        if (is_null($name)) {
+            $this->_tags = array();
+        } else {
+            if (array_key_exists($name, $this->_tags)) {
+                unset($this->_tags[$name]);
+            }
+        }
         return $this;
     }
 
@@ -342,16 +351,5 @@ class FieldCore
     public function _getTag($name, $default = null)
     {
         return array_key_exists($name, $this->_tags) ? $this->_tags[$name] : $default;
-    }
-
-    protected static function explode($delimiter, $string, $escape = '', $replace = '#+@+#')
-    {
-        if (empty($escape)) {
-            return explode($delimiter, $string);
-        }
-        $split = explode($delimiter, str_replace($escape, $replace, $string));
-        return array_map(function($s) use ($replace, $escape) {
-            return str_replace($replace, $escape, $s);
-        }, $split);
     }
 }

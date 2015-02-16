@@ -1,4 +1,5 @@
 <?php
+namespace FormKit;
 
 /**
  * フィールドセットクラス
@@ -21,14 +22,74 @@ class FieldSet implements \Iterator
     }
 
     /**
-     * @param string $field_name
-     * @param string $type
-     * @param string $label
-     * @return Field
+     * @return Field[]
      */
-    protected function newField($field_name, $type = '', $label = '')
+    public function toMap()
     {
-        return new Field($field_name, $type, $label);
+        return $this->fields;
+    }
+
+    /**
+     * @return Field[]
+     */
+    public function toArray()
+    {
+        return array_values($this->fields);
+    }
+
+    /**
+     * @return string[]
+     */
+    public function names()
+    {
+        return array_keys($this->fields);
+    }
+
+    /**
+     * フィールドをセットします
+     *
+     * <pre>
+     * Usage:
+     * add($fieldset);
+     * add($field);
+     * add(array(
+     *   $field,
+     *   'name1',
+     *   'name2' => 'name2type',
+     *   'name3' => array('name3type'),
+     *   'name4' => array('name4type', 'name4label'),
+     *   'name5' => array('type' => 'name5type', more attributes...),
+     * ));
+     * add('name5');
+     * </pre>
+     * @param Field|Field[]|string|string[]|FieldSet $fields
+     * @return static
+     * @throws \InvalidArgumentException
+     */
+    public function add($fields)
+    {
+        is_array($fields) or ($fields = array($fields));
+        foreach ($fields as $key => $val) {
+            // case Field instance array
+            if (is_object($val)) {
+                // case FieldSet instance
+                if ($val instanceof FieldSet) {
+                    $this->addFieldset($val);
+                } // case Field instance
+                elseif ($val instanceof Field) {
+                    $this->addFieldObject($val);
+                }
+            } // case [field name => field structure] array
+            elseif (is_string($key)) {
+                $this->addFieldStructure($key, $val);
+            } // case filed name
+            elseif (is_int($key) and is_string($val)) {
+                $this->addFieldStructure($val);
+            } else {
+                throw new \InvalidArgumentException;
+            }
+        }
+        return $this;
     }
 
     /**
@@ -38,8 +99,139 @@ class FieldSet implements \Iterator
     public function addFieldset(FieldSet $fieldset)
     {
         foreach ($fieldset as $field) {
-            $this->add($field);
+            $this->addFieldObject($field);
         }
+        return $this;
+    }
+
+    /**
+     * フィールドインスタンスを追加します
+     * @param Field $field
+     * @return static
+     */
+    public function addFieldObject(Field $field)
+    {
+        $this->fields[$field->name()] = $field;
+        return $this;
+    }
+
+    /**
+     * 連想配列でフィールドを追加します
+     *
+     * <pre>
+     * Usage:
+     * addFieldStructure('name1')
+     * addFieldStructure('name2', 'name2type')
+     * addFieldStructure('name3', array('name3type'))
+     * addFieldStructure('name4', array('name4type', 'name4label'))
+     * addFieldStructure('name5', array('type' => 'name5type', more attributes...))
+     * </pre>
+     * @param string $fieldName
+     * @param array|string $structure
+     * @return static
+     */
+    public function addFieldStructure($fieldName, $structure = array())
+    {
+        is_array($structure) or $structure = array($structure);
+        $type = isset($structure[0]) ? $structure[0] : '';
+        $label = isset($structure[1]) ? $structure[1] : '';
+
+        $field = new Field($fieldName, $type, $label);
+        foreach ($structure as $key => $val) {
+            $field->_setAttribute($key, $val);
+        }
+        return $this->addFieldObject($field);
+    }
+
+    /**
+     * 指定されたフィールド名のフィールドがフィールドリスト内に存在するか判定します
+     * @param string $fieldName 判定するフィールド名
+     * @return bool 存在する場合TRUE、しない場合FALSEを返します。
+     */
+    public function exists($fieldName)
+    {
+        return is_string($fieldName) && array_key_exists($fieldName, $this->fields);
+    }
+
+    /**
+     * フィールド数を取得します
+     * @return int フィールド数
+     */
+    public function count()
+    {
+        return count($this->fields);
+    }
+
+    /**
+     * フィールドリストからフィールドを取得します
+     * @param string[]|string|int $fieldName 取得するフィールドのフィールド名、またはフィールド名のリスト。
+     * @return static|Field|Field[] 引数がフィールド名の場合は指定したフィールドを返します。
+     * 引数がフィールド名リストの場合はフィールド名をキーにしたフィールドの配列、
+     * 引数がない、またはNULLの場合は全フィールドの配列を返します。
+     * 指定したフィールド名のフィールドが存在しない場合はNULLを返します。
+     * @throws
+     */
+    public function get($fieldName = null)
+    {
+        if (is_string($fieldName)) {
+            return $this->exists($fieldName) ? $this->fields[$fieldName] : null;
+        } elseif (is_int($fieldName)) {
+            return $this->getByIndex($fieldName);
+        } elseif (is_array($fieldName)) {
+            $map = array();
+            foreach ($fieldName as $aFieldName) {
+                $field = $this->get($aFieldName);
+                $field and ($map[$aFieldName] = $field);
+            }
+            return $map;
+        } elseif (is_null($fieldName)) {
+            return $this->toMap();
+        }
+        throw new \InvalidArgumentException();
+    }
+
+    /**
+     * @param int $index
+     * @return Field
+     */
+    public function getByIndex($index)
+    {
+        is_int($index) or $index = intval($index);
+        if ($this->count() > $index) {
+            foreach ($this->fields as $field) {
+                if (0 == $index--) {
+                    return $field;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * フィールドリストからフィールドを削除します
+     * @param string[]|string $fieldName 削除するフィールドのキー名、またはキー名の配列。指定しなかった場合はすべてのフィールドを削除します。
+     * @return static
+     */
+    public function remove($fieldName = null)
+    {
+        if (is_null($fieldName)) {
+            return $this->removeAll();
+        } elseif (is_array($fieldName)) {
+            foreach ($fieldName as $aFieldName) {
+                $this->remove($aFieldName);
+            }
+        } elseif (is_string($fieldName) and $this->exists($fieldName)) {
+            unset($this->fields[$fieldName]);
+        }
+        return $this;
+    }
+
+    /**
+     * @return static
+     */
+    public function removeAll()
+    {
+        $this->fields = array();
         return $this;
     }
 
@@ -81,350 +273,6 @@ class FieldSet implements \Iterator
         print_r($fieldset);
     }
 
-    /**
-     * @param Field $field
-     * @return static
-     */
-    public function addFieldObject(Field $field)
-    {
-        $this->fields[$field->name()] = $field;
-        return $this;
-    }
-
-    /**
-     *
-     * usage:
-     * <br>add_field_structure('name1')
-     * <br>add_field_structure('name2', 'name2type')
-     * <br>add_field_structure('name3', array('name3type'))
-     * <br>add_field_structure('name4', array('name4type', 'name4label'))
-     * <br>add_field_structure('name5', array('type' => 'name5type', more attributes...))
-     * @param string $field_name
-     * @param array|string $structure
-     * @return static
-     */
-    public function addFieldStructure($field_name, $structure = array())
-    {
-        is_array($structure) or $structure = array($structure);
-        $type = isset($structure[0]) ? $structure[0] : '';
-        $label = isset($structure[1]) ? $structure[1] : '';
-
-        $field = $this->newField($field_name, $type, $label);
-        foreach ($structure as $key => $val) {
-            $field->attr($key, $val);
-        }
-        return $this->addFieldObject($field);
-    }
-
-    /**
-     * フィールドをセットします
-     *
-     * usage:
-     * <br>add($fieldset)
-     * <br>add($field)
-     * <br>add(array($field
-     * <br>, 'name1'
-     * <br>, 'name2' => 'name2type'
-     * <br>, 'name3' => array('name3type')
-     * <br>, 'name4' => array('name4type', 'name4label')
-     * <br>, 'name5' => array('type' => 'name5type', more attributes...)
-     * <br>))
-     * <br>add('name5')
-     * @param self|Field|array|string $field
-     * @return static
-     * @throws \InvalidArgumentException
-     */
-    public function add($field)
-    {
-        if (is_object($field)) {
-            // case FieldSet instance
-            if ($field instanceof self) {
-                return $this->addFieldset($field);
-            }
-            // case Field instance
-            if ($field instanceof Field) {
-                return $this->addFieldObject($field);
-            }
-        } elseif (is_array($field)) {
-            foreach ($field as $key => $val) {
-                // case Field instance array
-                if (is_object($val) and $val instanceof Field) {
-                    $this->addFieldObject($val);
-                } // case [field name => field structure] array
-                elseif (is_string($key)) {
-                    $this->addFieldStructure($key, $val);
-                } // case filed name array
-                elseif (is_int($key) and is_string($val)) {
-                    $this->addFieldStructure($val);
-                } else {
-                    throw new \InvalidArgumentException;
-                }
-            }
-            return $this;
-        } elseif (is_string($field)) {
-            // case field name
-            return $this->addFieldStructure($field);
-        }
-
-        throw new \InvalidArgumentException;
-    }
-
-    /**
-     * フィールドリストからフィールドを削除します
-     * @param string[]|string $field_name 削除するフィールドのキー名、またはキー名の配列。指定しなかった場合はすべてのフィールドを削除します。
-     * @return static
-     */
-    public function remove($field_name = null)
-    {
-        if (func_num_args() == 0) {
-            return $this->remove_all();
-        } elseif (is_array($field_name)) {
-            foreach ($field_name as $a_field_name) {
-                $this->remove($a_field_name);
-            }
-        } elseif (is_string($field_name) and $this->exists($field_name)) {
-            unset($this->fields[$field_name]);
-        }
-        return $this;
-    }
-
-    /**
-     * @return static
-     */
-    public function remove_all()
-    {
-        $this->fields = array();
-        return $this;
-    }
-
-    public static function operand_list_for_find()
-    {
-        static $operand_list;
-        $operand_list or $operand_list = array(
-            '!=' => function ($f, $i, $q) {
-                return strval($f) == strval($q);
-            }
-        );
-        return $operand_list;
-    }
-
-    /**
-     * @param string $query
-     * @return static Fieldset of found fields
-     */
-    public function find($query)
-    {
-        static $operand_list = array('!=', '*=', '^=', '$=', '=');
-
-        if ($query == '*') {
-            return $this->find_core('name', '*', '');
-        }
-        foreach ($operand_list as $ope) {
-            if (($pos = strpos($query, $ope)) !== false) {
-                $attr = $pos ? substr($query, 0, $pos) : 'name';
-                $search = substr($query, $pos + strlen($ope));
-                return $this->find_core($attr, $ope, $search);
-            }
-        }
-        return $this->find_core('name', '=', $query);
-    }
-
-    /**
-     * <br>usage:
-     * <br>find_index(0); =>
-     * <br>find_index('>2');
-     * @param int|string $index
-     * @param string $ope
-     * @return static Fieldset of found fields
-     */
-    public function find_index($index, $ope = '=')
-    {
-        static $operand_list;
-        $operand_list or $operand_list = array(
-            '!=' => function ($f, $i, $s) {
-                return $f and $i != $s;
-            },
-            '>=' => function ($f, $i, $s) {
-                return $f and $i >= $s;
-            },
-            '<=' => function ($f, $i, $s) {
-                return $f and $i <= $s;
-            },
-            '=' => function ($f, $i, $s) {
-                return $f and $i == $s;
-            },
-            '>' => function ($f, $i, $s) {
-                return $f and $i > $s;
-            },
-            '<' => function ($f, $i, $s) {
-                return $f and $i < $s;
-            },
-            '' => function () {
-                return false;
-            },
-        );
-
-        if (is_string($index)) {
-            foreach (array_keys($operand_list) as $prefix) {
-                if ($prefix and strpos($index, $prefix) === 0) {
-                    $ope = $prefix;
-                    $index = substr($index, strlen($prefix));
-                    break;
-                }
-            }
-        }
-
-        isset($operand_list[$ope]) or $ope = '';
-        return $this->find_func($operand_list[$ope], $index);
-    }
-
-    /**
-     * 関数でフィルタリングしたフィールドセットを取得します
-     * @param callable $func
-     * @param mixed $arg
-     * @return static Fieldset of found fields
-     */
-    public function find_func($func, $arg = null/* [, $arg[, ..]] */)
-    {
-        $fieldset = new static;
-        if (is_callable($func)) {
-            $index = 0;
-            foreach ($this->fields as $field) {
-                $args = array($field, $index++) + array_slice(func_get_args(), 1);
-                if (call_user_func_array($func, $args)) {
-                    $fieldset->add($field);
-                }
-            }
-        }
-        return $fieldset;
-    }
-
-    /**
-     * @param $attr
-     * @param $ope
-     * @param $search
-     * @return static Fieldset of found fields
-     */
-    protected function find_core($attr, $ope, $search)
-    {
-
-        return array();
-    }
-
-    protected function _filter(array $expr)
-    {
-        $strategies = array();
-        foreach ($expr as $piece_of_expr) {
-            $piece_of_expr = trim($piece_of_expr);
-            $strategies[] = array(self::_get_filtering_method($piece_of_expr), $piece_of_expr);
-        }
-
-        $field_set = new static;
-        foreach ($this->fields as $index => $field) {
-            if (self::$strategies[0]($index, $field, $strategies[1])) {
-                $field_set->add($field);
-            }
-        }
-        return $field_set;
-    }
-
-    protected static function _get_filtering_strategy($expr)
-    {
-        $lc_expr = strtolower($expr);
-        static $types = array(':text', ':textarea', ':checkbox', ':radio', ':hidden', ':button', ':file', ':select', ':password', ':submit');
-
-        if (in_array($lc_expr, $types)) {
-            return array('_filtering_by_type' => array('expr' => ltrim($expr, ':')));
-        }
-        if ($lc_expr == ':odd' || $lc_expr == ':even') {
-
-        }
-        if (preg_match('/:(eq|type|)\(\)/', $expr, $matches)) {
-
-        }
-        return '_filtering_by_wildcard';
-    }
-
-    /**
-     * フィールド数を取得します
-     * @return int フィールド数
-     */
-    public function count()
-    {
-        return count($this->fields);
-    }
-
-    /**
-     * フィールドリストからフィールドを取得します
-     * @param string[]|string|int $field_name 取得するフィールドのフィールド名、またはフィールド名のリスト。
-     * @return static|Field 引数がフィールド名の場合は指定したフィールドを返します。
-     * 引数がフィールド名リストの場合はフィールド名をキーにしたフィールドの配列、
-     * 引数がない、またはNULLの場合は全フィールドの配列を返します。
-     * 指定したフィールド名のフィールドが存在しない場合はNULLを返します。
-     * @throws
-     */
-    public function get($field_name = null)
-    {
-        if (is_string($field_name)) {
-            return $this->exists($field_name) ? $this->fields[$field_name] : null;
-        }
-        if (is_int($field_name)) {
-            return $this->get_by_index($field_name);
-        }
-        if (is_array($field_name)) {
-            $field_list = array();
-            foreach ($field_name as $a_field_name) {
-                if ($this->exists($a_field_name)) {
-                    $field_list[] = $this->get($a_field_name);
-                }
-            }
-            return $field_list;
-        }
-        if (is_null($field_name)) {
-            return $this->to_array();
-        }
-        throw new \InvalidArgumentException();
-    }
-
-    /**
-     * @param int $index
-     * @return Field
-     */
-    public function get_by_index($index)
-    {
-        is_int($index) or $index = intval($index);
-        if ($this->count() > $index) {
-            foreach ($this->fields as $field) {
-                if (0 == $index--) {
-                    return $field;
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * @return Field[]
-     */
-    public function to_array()
-    {
-        $field_list = array();
-        foreach ($this->fields as $field) {
-            $field_list[] = $field;
-        }
-        return $field_list;
-    }
-
-    /**
-     * 指定されたフィールド名のフィールドがフィールドリスト内に存在するか判定します
-     * @param string $field_name 判定するフィールド名
-     * @return bool 存在する場合TRUE、しない場合FALSEを返します。
-     */
-    public function exists($field_name)
-    {
-        return is_string($field_name) && array_key_exists($field_name, $this->fields);
-    }
-
     //---------------------------
     // implements for Iterator
     //---------------------------
@@ -453,38 +301,5 @@ class FieldSet implements \Iterator
     public function rewind()
     {
         reset($this->fields);
-    }
-
-    //-------------------------
-    // static methods
-    //-------------------------
-
-    /**
-     * 変数が空文字かどうか判定します
-     * @param mixed $var
-     * @return bool 引数が空文字の場合TRUE、そうでない場合FALSEを返します
-     */
-    protected static function is_blank($var)
-    {
-        return $var === '';
-    }
-
-    /**
-     * 変数が空文字以外の文字列、または数値かどうか判定します
-     * @param mixed $var
-     * @return bool 引数が空文字以外の文字列、または数値の場合TRUE、どちらでもない場合FALSEを返します
-     */
-    protected static function is_solid_string($var)
-    {
-        return (is_string($var) || is_numeric($var)) && strlen((string)$var) > 0;
-    }
-
-    /**
-     * @param mixed $var
-     * @return bool
-     */
-    protected static function is_valid_index($var)
-    {
-        return is_int($var) || (is_numeric($var) && ($var === '0' || intval($var)));
     }
 }

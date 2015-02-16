@@ -1,4 +1,5 @@
 <?php
+namespace FormKit;
 
 /**
  * 入力フィールドクラス
@@ -39,10 +40,25 @@ class Field extends FieldCore
      * @param string $type
      * @param string $label
      * @return static
+     * @deprecated
      */
     public static function make($name, $type = '', $label = '')
     {
         return new static($name, $type, $label);
+    }
+
+    /**
+     * 親フォームを取得または設定します
+     * @param Form $form
+     * @return static|FieldSet
+     */
+    public function form(Form $form = null)
+    {
+        if ($form) {
+            $this->fieldset = $form;
+            return $this;
+        }
+        return $this->fieldset;
     }
 
     /**
@@ -130,13 +146,22 @@ class Field extends FieldCore
     }
 
     /**
-     * バリデーションルールを追加または取得します
-     * @param string|array $rule
-     * @return static|array
+     * バリデーションルールを追加します
+     * @param string|array $rule 追加するルール
+     * <br>これらは同じルールを追加します
+     * <pre>
+     * $field->rule('required|minLength:2|maxLength:50');
+     * $field->rule(array(
+     *     'required',
+     *     'minLength:2',
+     *     'maxLength' => 50,
+     * ));
+     * </pre>
+     * @return static
      */
-    public function rule($rule = null)
+    public function rule($rule)
     {
-        return is_null($rule) ? $this->_getRules() : $this->_addRule($rule);
+        return $this->_addRule($rule);
     }
 
     /**
@@ -163,13 +188,21 @@ class Field extends FieldCore
     }
 
     /**
-     * フィルターを追加または取得します
-     * @param string|array $filter
-     * @return static|array
+     * フィルタを追加します
+     * @param string|array $filter 追加するフィルタ
+     * <br>これらは同じフィルタを追加します
+     * <pre>
+     * $field->filter('trim|replace:is:are');
+     * $field->filter(array(
+     *     'trim',
+     *     'replace' => array('is', 'are'),
+     * ));
+     * </pre>
+     * @return static
      */
-    public function filter($filter = null)
+    public function filter($filter)
     {
-        return is_null($filter) ? $this->_getFilters() : $this->_addFilter($filter);
+        return $this->_addFilter($filter);
     }
 
     /**
@@ -185,11 +218,11 @@ class Field extends FieldCore
     /**
      * 属性値を追加または取得します
      * <pre>
-     * $field->attr('readonly', 'readonly'); // 属性[disabled]の値を設定します
+     * $field->attr('readonly', 'readonly'); // 属性[readonly]の値を設定します
      * $field->attr(array(
      *     'cols' => 20,
      *     'rows' => 10,
-     * )); // 属性[cols][rows]の値を設定します
+     * )); // 属性[cols],[rows]の値を設定します
      * var_export($field->attr('readonly')); // -> 'readonly'
      * var_export($field->attr()); // -> array('readonly' => 'readonly', 'cols' => 20, 'rows' => 10,);
      * </pre>
@@ -222,6 +255,11 @@ class Field extends FieldCore
         return $this->_clearAttribute($attr);
     }
 
+    /**
+     * @param $tag
+     * @param string $value
+     * @return mixed|static
+     */
     public function tag($tag, $value = self::UNSPECIFIED)
     {
         if (is_array($tag)) {
@@ -233,6 +271,15 @@ class Field extends FieldCore
             return $this->_getTag($tag);
         }
         return $this->_setTag($tag, $value);
+    }
+
+    /**
+     * @param null $tag
+     * @return static
+     */
+    public function removeTag($tag = null)
+    {
+        return $this->_clearAttribute($tag);
     }
 
     /**

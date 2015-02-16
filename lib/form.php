@@ -1,201 +1,230 @@
 <?php
+namespace FormKit;
 
 /**
- * Class FormKit_Form
+ * フォームクラス
+ * @package FormKit
+ * @author hikaru
+ * @since PHP 5.3
+ * @version 1.0.0
  */
-class Form implements ArrayAccess
+class Form extends FieldSet implements \ArrayAccess
 {
-	// =========================
-	// Life cycle
-	// =========================
+    // =========================
+    // Life cycle
+    // =========================
 
-	public function __construct()
-	{
-	}
+    /** @var array  */
+    public $_attributes = array();
 
-	/** @var FieldSet フィールド要素 */
-	public $fieldset;
+    /** @var array エラー */
+    public $_errors = array();
 
-	/** @var array  */
-	public $attributes = array();
+    public $_error_message_format = '';
 
-	/** @var array エラー */
-	public $errors = array();
+    public $_error_message_placeholder = '';
 
-	// =========================
-	// Configuration
-	// =========================
+    public function __construct()
+    {
+    }
 
-	protected $config = array(
-		'error_msg_format' => '',
-		'error_msg_placeholder' => '',
-	);
+    // =========================
+    // field set control
+    // =========================
 
-	/**
-	 * like {@see FormKit::set_config}
-	 * @param array $config
-	 * @return array
-	 */
-	public function set_config(array $config)
-	{
-		return ($this->config = FormKit::call_func('array_extend', $this->config, $config));
-	}
+    /**
+     * フィールド要素を追加します
+     *
+     * <pre>
+     * Usage:
+     * $form->add(FK::Field('first_name', 'text', '名')->rule('maxLength:50'));
+     * $form->add('email_address'); // = $form->add(FK::Field('email_address'))
+     * </pre>
+     * @param Field|Field[]|string|string[]|FieldSet $field
+     * @return static
+     */
+    public function add($field)
+    {
+        parent::add($field);
+        return $this;
+    }
 
-	/**
-	 * like {@see FormKit::set_config_item}
-	 * @param string $item
-	 * @param mixed $value
-	 * @return array
-	 */
-	public function set_config_item($item, $value)
-	{
-		return FormKit::call_func('set_config', FormKit::call_func('array_path', $item, $value));
-	}
+    /**
+     * フィールドインスタンスを追加します
+     * @param Field $field
+     * @return static
+     */
+    public function addFieldObject(Field $field)
+    {
+        parent::addFieldObject($field);
+        foreach ($this->fields as $field) {
+            $field->form($this);
+        }
+        return $this;
+    }
 
-	/**
-	 * like {@see FormKit::config_item}
-	 * @param string $item
-	 * @param mixed $default
-	 * @return mixed
-	 */
-	public function config_item($item, $default = null)
-	{
-		return FormKit::call_func('array_trace', $this->config, $item, $default);
-	}
+    /**
+     * フィールド要素を取得します
+     *
+     * <pre>
+     * Usage:
+     * $form->add('first_name')->add('last_name');
+     * var_dump($form->field('first_name'));
+     * // フィールド名を渡すとフィールド要素を返します
+     * // object(\FormKit\Field)#1 (1) {
+     * //   ["_name:public"]=> string(3) "first_name"
+     * // }
+     * var_dump($form->field('middle_name'));
+     * // 存在しないフィールド名だとNULLを返します
+     * // NULL
+     * var_dump($form->field(array('first_name', 'last_name')));
+     * // フィールド名リストを渡すとフィールド要素リストを返します
+     * // array(2) {
+     * //   [0]=>
+     * //   object(\FormKit\Field)#1 (1) {
+     * //     ["_name:public"]=> string(3) "first_name"
+     * //   }
+     * //   [1]=>
+     * //   object(\FormKit\Field)#2 (1) {
+     * //     ["_name:public"]=> string(3) "last_name"
+     * //   }
+     * // }
+     * var_dump($form->field(array('email', 'tel')));
+     * // フィールド名リストに存在しないフィールド名があった場合でも配列形式で返します
+     * // array(0) { }
+     * </pre>
+     * @param string[]|string|int $fieldName 取得するフィールドのフィールド名、またはフィールド名のリスト。
+     * @return Field|Field[] 引数がフィールド名の場合、対応するフィールド要素を返します。
+     * 引数がフィールド名リストの場合はフィールド名をキーにしたフィールドの配列、
+     * 引数がない、またはNULLの場合は全フィールドの配列を返します。
+     * 指定したフィールド名のフィールドが存在しない場合はNULLを返します。
+     */
+    public function field($fieldName = null)
+    {
+        return parent::get($fieldName);
+    }
 
-	// =========================
-	// Field access
-	// =========================
+    /**
+     * フィールド要素を削除します
+     * @param string|string[] $fieldName
+     * @return static
+     */
+    public function remove($fieldName = null)
+    {
+        return parent::remove($fieldName);
+    }
 
-	/**
-	 * @uses FieldSet::add()
-	 * @param Field|string|Field[]|string[]|FormKit_FieldSet $field
-	 * @return static
-	 */
-	public function add_field($field)
-	{
-		if (func_num_args() > 1)
-		{
-			$fields = array();
-			foreach (func_get_args() as $arg)
-			{
-				is_object($arg) and $arg instanceof FormKit_FieldSet and $arg = (array)$arg;
-				is_array($arg) or $arg = array($arg);
-				$fields = array_merge($fields, $arg);
-			}
-			return $this->add_field($fields);
-		}
-		$this->add($field);
-		return $this;
-	}
+    // =========================
+    // field access
+    // =========================
 
-	// =========================
-	// Define rules
-	// =========================
+    /**
+     * @param $fieldNames
+     * <pre>
+     * $form->
+     * $form->input('hobbies', array('music', 'TV game', array(20, 5, 13)));
+     * var_export($form->value('hobbies/1')); // -> 'TV game'
+     * var_export($form->value('hobbies/5')); // -> NULL
+     * var_export($form->value('hobbies/2/0')); // -> 20
+     * var_export($form->value(array('hobbies/1'))); // ->
+     * </pre>
+     * @return array
+     */
+    public function value($fieldNames)
+    {
+        $parse = function($str) {
+            $paths = explode('/', $str, 2);
+            $root = array_shift($paths);
+            $path = array_shift($paths);
+            return array($root, is_string($path) ? $path : '');
+        };
+        $fieldNames = is_null($fieldNames) ? parent::names() : (array)$fieldNames;
+        $values = array();
+        foreach ($fieldNames as $fieldName) {
+            list($fieldName, $path) = $parse($fieldName);
+            $field = parent::get($fieldName);
+            if ($field) {
+                $values[$fieldName] = fk_pathGet($field->_getValue(), $path);
+            }
+        }
+        return $values;
+    }
 
-	/**
-	 * @param FormKit_Rule $rule
-	 * @return static
-	 */
-	public function add_rule($rule)
-	{
-		if ($rule instanceof FormKit_Rule)
-		{
+    /**
+     * パラメータを設定します
+     * @param string|array|object $fieldName フィールド名、またはフィールド名をキーにした値の連想配列かオブジェクト
+     * @param mixed $value 第一引数でフィールド名を指定した場合の値
+     * @return static
+     */
+    public function input($fieldName, $value = Field::UNSPECIFIED)
+    {
+        if (is_string($fieldName)) {
+            $map = array($fieldName => $value);
+        } elseif (is_array($fieldName) or is_object($fieldName)) {
+            $map = (array)$fieldName;
+        } else {
+            throw new \InvalidArgumentException;
+        }
+        foreach ($map as $fieldName => $value) {
+            $field = parent::get($fieldName);
+            $field and $field->_setValue($value);
+        }
+        return $this;
+    }
 
-			return $this;
-		}
-		throw new InvalidArgumentException;
-	}
+    // =========================
+    // Definition rules, filters
+    // =========================
 
-	/**
-	 * @param string|int|array $item
-	 * @param null $value
-	 * @return $this
-	 */
-	public function input($item, $value = null)
-	{
-		if (is_array($item))
-		{
-			foreach ($item as $a_item)
-			{
-				$this->fieldset->filter($a_item)->value($value);
-			}
-		}
-		return $this;
-	}
+    /**
+     * ルールを定義します
+     * @param string $name
+     * @param callable $func
+     * @return static
+     */
+    public function defRule($name, $func)
+    {
+        FormKit::defRule($name, $func);
+        return $this;
+    }
 
-	// =========================
-	// Form attributes
-	// =========================
-	public function set_attr($attr, $value = null)
-	{
+    /**
+     * フィルタを定義します
+     * @param string $name
+     * @param callable $func
+     * @return static
+     */
+    public function defFilter($name, $func)
+    {
+        FormKit::defFilter($name, $func);
+        return $this;
+    }
 
-	}
+    // =========================
+    // Form attributes
+    // =========================
 
-	public function attr($attr, $default = null)
-	{
+    public function setAttr($attr, $value = null)
+    {
 
-	}
+    }
 
+    public function attr($attr, $default = null)
+    {
 
+    }
 
-
-
-
-
-
-
-	/**
-	 * フィールドをセットします
-	 * @param FormKit_FieldSet|FormKit_Field[]|FormKit_Field|string[]|string $field
-	 * @return self
-	 * @see FormKit_FieldSet::add()
-	 * @throws InvalidArgumentException
-	 */
-	public function add($field)
-	{
-		call_user_func_array(array($this->_field_set(), 'add'), func_get_args());
-		return $this;
-	}
-
-	/**
-	 * フィールドリストからフィールドを削除します
-	 * @param string[]|string $field_name 削除するフィールドのキー名、またはキー名の配列。指定しなかった場合はすべてのフィールドを削除します。
-	 * @return self
-	 */
-	public function remove($field_name = null)
-	{
-		call_user_func_array(array($this->_field_set(), 'remove'), func_get_args());
-		return $this;
-	}
-
-	/**
-	 * パラメータを取得または設定します
-	 * @param object|string[]|string $field_name パラメータのキー、またはキーと値がペアになった連想配列かオブジェクト
-	 * @param mixed $value 第一引数でフィールド名を指定した場合の値
-	 * @return self
-	 * @throws
-	 */
-	public function set_parameters($field_name, $value = null)
-	{
-		if (is_array($field_name) || is_object($field_name))
-		{
-			foreach ($field_name as $k => $v)
-			{
-				$this->set_parameters($k, $v);
-			}
-			return $this;
-		}
-		elseif (is_string($field_name))
-		{
-			if ($this->exists($field_name))
-			{
-				$this->field($field_name)->value($value);
-				return $this;
-			}
-		}
-		throw new InvalidArgumentException();
-	}
+    /**
+     * パラメータを設定します
+     * @param object|string[]|string $field_name パラメータのキー、またはキーと値がペアになった連想配列かオブジェクト
+     * @param mixed $value 第一引数でフィールド名を指定した場合の値
+     * @return self
+     * @throws
+     */
+    public function set_parameters($field_name, $value = Field::UNSPECIFIED)
+    {
+        return $this->input($field_name, $value);
+    }
 
 	/**
 	 * フィールド名とペアになったパラメータリストを取得します
@@ -206,8 +235,7 @@ class Form implements ArrayAccess
 	public function get_parameter_list($field_name) {
 		if (is_array($field_name)) {
 			$param_list = array();
-			foreach ($field_name as $a_field_name)
-			{
+			foreach ($field_name as $a_field_name) {
 				$param_list[$a_field_name] =
 					$this->exists($a_field_name) ? $this->field($a_field_name)->value() : NULL;
 			}
@@ -216,7 +244,7 @@ class Form implements ArrayAccess
 			return array($field_name =>
 				$this->exists($field_name) ? $this->field($field_name)->value() : NULL);
 		}
-		throw new InvalidArgumentException();
+		throw new \InvalidArgumentException();
 	}
 
 
@@ -232,13 +260,12 @@ class Form implements ArrayAccess
 		$target_params = empty($target_params) ? array() : array_flip($target_params);
 
 		$queries = array();
-		/** @var Form_Field $field */
-		foreach ($this->_field_list as $field) {
-			if (isset($exclude_params[$field->name()]) || ($target_params && ! isset($target_params[$field->name()])))
-			{
+		foreach ($this->$fields as $field) {
+			if (isset($exclude_params[$field->name()]) || ($target_params && ! isset($target_params[$field->name()]))) {
 				continue;
 			}
-			if ( ! self::is_blank_or_null($field->value())) {
+            $value = $field->value();
+			if ($value !== null and $value !== '') {
 				if ($field->type() == 'checkbox' && $field->value() == 0) {
 					continue;
 				}
@@ -269,7 +296,7 @@ class Form implements ArrayAccess
 	public function has_value($field_name = null, $everyone = FALSE) {
 		if (func_num_args() == 0)
 		{
-			return $this->has_value(array_keys($this->_field_list));
+			return $this->has_value(parent::names());
 		}
 		elseif (is_array($field_name))
 		{
@@ -291,7 +318,7 @@ class Form implements ArrayAccess
 		}
 		elseif (is_string($field_name))
 		{
-			return $this->exists($field_name) ? $this->field($field_name)->has_value() : FALSE;
+			return $this->exists($field_name) ? $this->field($field_name)->hasValue() : FALSE;
 		}
 		return FALSE;
 	}
@@ -303,10 +330,10 @@ class Form implements ArrayAccess
 	 */
 	public function get_valid_values($field_name = NULL)
 	{
-		/** @var Form_Field $field */
+		/** @var Field $field */
 		if (func_num_args() == 0) // get all
 		{
-			return $this->get_valid_values(array_keys($this->_field_list));
+			return $this->get_valid_values(parent::names());
 		}
 		elseif (is_array($field_name))
 		{
@@ -320,41 +347,9 @@ class Form implements ArrayAccess
 			}
 			return $array;
 		}
-		elseif ( ($field = $this->field($field_name)) !== NULL && $field->has_value())
+		elseif ( ($field = $this->field($field_name)) !== NULL && $field->hasValue())
 		{
 			return $field->value();
-		}
-		return NULL;
-	}
-
-	/**
-	 * フィールドの値を取得します
-	 * @param string|array|null $field_name フィールド名:対応するフィールドの値,フィールド名の配列:対応するフィールドの連想配列,NULL:全フィールドの連想配列
-	 * @param int $index
-	 * @return mixed
-	 */
-	public function value($field_name = NULL, $index = NULL)
-	{
-		if (func_num_args() == 0)
-		{
-			return $this->value(array_keys($this->_field_list));
-		}
-		elseif (is_array($field_name))
-		{
-			$array = array();
-			foreach ($field_name as $a_field_name)
-			{
-				if ( ! is_null($value = $this->value($a_field_name)))
-				{
-					$array[$a_field_name] = $value;
-				}
-			}
-			return is_null($index) ? $array : (isset($array[$index]) ? $array[$index] : NULL);
-		}
-		if ( ($field = $this->field($field_name)) !== NULL)
-		{
-			$value = $field->value();
-			return is_null($index) ? $value : (isset($value[$index]) ? $value[$index] : NULL);
 		}
 		return NULL;
 	}
@@ -363,7 +358,7 @@ class Form implements ArrayAccess
 	{
 		if (is_null($field_name))
 		{
-			return $this->label(array_keys($this->_field_list));
+			return $this->label(parent::names());
 		}
 		elseif (is_array($field_name))
 		{
@@ -465,7 +460,7 @@ class Form implements ArrayAccess
 
 	/**
 	 * バリデータを取得します
-	 * @return FormKit_Validator
+	 * @return Validator
 	 */
 	public function validator()
 	{
