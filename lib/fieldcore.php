@@ -26,6 +26,8 @@ abstract class FieldCore
     public $_attributes = array();
     /** @var array タグ [key => value] */
     public $_tags = array();
+    /** @var bool バリデーション要否 */
+    public $_willValidation = true;
 
     /**
      * 値を設定します
@@ -162,6 +164,15 @@ abstract class FieldCore
             $this->_rules = array();
         }
         return $this;
+    }
+
+    /**
+     * バリデーション要否を設定します
+     * @param $enable
+     */
+    public function _willValidation($enable)
+    {
+        $this->_willValidation = $enable;
     }
 
     /**
@@ -351,5 +362,83 @@ abstract class FieldCore
     public function _getTag($name, $default = null)
     {
         return array_key_exists($name, $this->_tags) ? $this->_tags[$name] : $default;
+    }
+
+    /**
+     *
+     */
+    public function _validity()
+    {
+        foreach ($this->_rules as $name => $args) {
+            $result = true;
+            $values = $this->_getValue();
+        }
+        if ($field->rule() && count($field->rule()) > 0)
+        {
+            foreach ($field->rule() as $rule_name => $args)
+            {
+                $result = TRUE;
+                $values = is_array($field->value()) ? $field->value() : array($field->value());
+                if ($rule_name == 'required' && is_array($field->value()))
+                {
+                    $result = FALSE;
+                    foreach ($values as $value)
+                    {
+                        if ( ! ($value === '' || is_null($value) || $value === FALSE))
+                        {
+                            $result = TRUE;
+                        }
+                    }
+                    $values = array();
+                }
+                foreach ($values as $value)
+                {
+                    if ($result !== TRUE)
+                    {
+                        break;
+                    }
+
+                    $blank_or_null = ($value === '' || is_null($value) || $value === FALSE);
+
+                    if ($rule_name == 'required')
+                    {
+                        $result = ! $blank_or_null;
+                    }
+                    elseif ( ! $blank_or_null && $rule_name == 'in_options')
+                    {
+                        $result = $field->options() && str_in_array($value, array_keys($field->options()));
+                    }
+                    elseif (method_exists($this, $rule_name))
+                    {
+                        if ( ! $blank_or_null)
+                        {
+                            $func_args = array_merge(array($value), $args);
+                            $result = call_user_func_array(array($this, $rule_name), $func_args);
+                        }
+                    }
+                    else
+                    {
+                        $result = $this->call_method($rule_name, $field, $args);
+                        break;
+                    }
+                }
+
+                if (is_string($result))
+                {
+                    $this->set_error_msg($field_name, $result);
+                    break;
+                }
+                elseif ($result == FALSE)
+                {
+                    if ($rule_name == 'required' && in_array($field->type(), array('select', 'checkbox', 'radio')))
+                    {
+                        $rule_name = 'required_select';
+                    }
+                    $message = $this->make_error_message($rule_name, $field->label(), $args);
+                    $this->set_error_msg($field_name, $message);
+                    break;
+                }
+            }
+        }
     }
 }

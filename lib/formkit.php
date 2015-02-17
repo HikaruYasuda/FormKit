@@ -93,7 +93,7 @@ class FormKit
      * <pre>
      * Usage:
      * FormKit::defRule('naturalNum', function($val) {
-     *   return fk_blankOrNull($val) or ctype_digit((string)$val);
+     *   return ctype_digit((string)$val);
      * });
      * FormKit::defRule(array(
      *   'tel' => function($val) {
