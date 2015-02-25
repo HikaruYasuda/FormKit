@@ -58,7 +58,7 @@ class Form extends FieldSet implements \ArrayAccess
     {
         parent::addFieldObject($field);
         foreach ($this->fields as $field) {
-            $field->form($this);
+            $field->fieldset = $this;
         }
         return $this;
     }
@@ -138,7 +138,7 @@ class Form extends FieldSet implements \ArrayAccess
             $path = array_shift($paths);
             return array($root, is_string($path) ? $path : '');
         };
-        $fieldNames = is_null($fieldNames) ? parent::names() : (array)$fieldNames;
+        $fieldNames = is_null($fieldNames) ? parent::fieldNames() : (array)$fieldNames;
         $values = array();
         foreach ($fieldNames as $fieldName) {
             list($fieldName, $path) = $parse($fieldName);
@@ -296,7 +296,7 @@ class Form extends FieldSet implements \ArrayAccess
 	public function has_value($field_name = null, $everyone = FALSE) {
 		if (func_num_args() == 0)
 		{
-			return $this->has_value(parent::names());
+			return $this->has_value(parent::fieldNames());
 		}
 		elseif (is_array($field_name))
 		{
@@ -333,7 +333,7 @@ class Form extends FieldSet implements \ArrayAccess
 		/** @var Field $field */
 		if (func_num_args() == 0) // get all
 		{
-			return $this->get_valid_values(parent::names());
+			return $this->get_valid_values(parent::fieldNames());
 		}
 		elseif (is_array($field_name))
 		{
@@ -358,7 +358,7 @@ class Form extends FieldSet implements \ArrayAccess
 	{
 		if (is_null($field_name))
 		{
-			return $this->label(parent::names());
+			return $this->label(parent::fieldNames());
 		}
 		elseif (is_array($field_name))
 		{
@@ -431,12 +431,22 @@ class Form extends FieldSet implements \ArrayAccess
 
 	/**
 	 * フィールドのHTMLを取得します
-	 * @param $element_name
+	 * @param $fieldName
 	 * @return string
 	 */
-	public function toHTML($element_name) {
-		$element = $this->field($element_name);
-		return is_null($element) ? '' : $element->html();
+	public function toHTML($fieldName = null) {
+        if (is_null($fieldName)) {
+            $fieldName = $this->fieldNames();
+        }
+        if (is_array($fieldName)) {
+            $html = array();
+            foreach ($this->field($fieldName) as $field) {
+                $html[] = $field->html();
+            }
+            return implode('\n', $html);
+        }
+		$field = $this->field($fieldName);
+		return is_null($field) ? '' : $field->html();
 	}
 
 	/**

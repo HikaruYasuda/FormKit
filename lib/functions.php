@@ -1,14 +1,12 @@
 <?php
 
-class_alias('\FormKit\FormKit', '\FK');
-class_alias('\FormKit\Field', '\Field');
-class_alias('\FormKit\FieldSet', '\FieldSet');
-class_alias('\FormKit\Form', '\Form');
 if (0) {
-    //class FK extends \FormKit\FormKit {}
-    //class Field extends \FormKit\Field {}
-    //class FieldSet extends \FormKit\FieldSet {}
-    //class Form extends \FormKit\Form {}
+    // class access assistants
+    class FK extends \FormKit\FormKit {}
+    class Form extends \FormKit\Form {}
+    class Field extends \FormKit\Field {}
+    class Rule extends \FormKit\Rule {}
+    class Filter extends \FormKit\Filter {}
 }
 
 

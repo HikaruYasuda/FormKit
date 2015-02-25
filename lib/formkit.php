@@ -13,17 +13,25 @@ class FormKit
     /** @var bool  */
     public static $strict = false;
 
-    /** @var array */
+    /** @var Rule[] */
     public static $rules = array();
 
-    /** @var array */
+    /** @var Filter[] */
     public static $filters = array();
 
     /** @var Form[] */
     public static $forms = array();
 
     /** @var string  */
-    public $current_form = '';
+    public static $current_form = '';
+
+    private static $initialized = false;
+
+    public static $lang = 'ja';
+    /** @var Field */
+    protected static $inCheckField;
+    /** @var int */
+    protected static $inCheckIndex = -1;
 
     // =========================
     // life cycle
@@ -31,17 +39,10 @@ class FormKit
 
     public static function init()
     {
-
-    }
-
-    public static function registerAutoLoad()
-    {
-        spl_autoload_register(get_called_class().'::loadClass', true, true);
-    }
-
-    public static function unregisterAutoLoad()
-    {
-        spl_autoload_unregister(get_called_class().'::loadClass');
+        if (!static::$initialized) {
+            spl_autoload_register(get_called_class().'::loadClass', true, true);
+            require dirname(__FILE__).DIRECTORY_SEPARATOR.'functions.php';
+        }
     }
 
     // =========================
@@ -75,16 +76,16 @@ class FormKit
 
     /**
      * @param string $name
-     * @param string|callable $test
+     * @param callable $func
+     * @param int $option
      * @return Rule
      */
-    public static function Rule($name, $test/* [, $option[, ..]] */)
+    public static function Rule($name, $func = null, $option = Rule::ArraySeparate)
     {
-        $rule = new Rule();
-        $rule->name = $name;
-        $rule->tester = $test;
-        $rule->option = array_slice(func_get_args(), 2);
-        return $rule;
+        if (is_null($func)) {
+            return isset(static::$rules[$name]) ? static::$rules[$name] : null;
+        }
+        return new Rule($name, $func, $option);
     }
 
     /**
@@ -97,14 +98,17 @@ class FormKit
      * });
      * FormKit::defRule(array(
      *   'tel' => function($val) {
-     *     return fk_blankOrNull($val) or preg_match('/^[0-9]{9,11}$/');
+     *     return preg_match('/^[0-9]{9,11}$/');
      *   },
      *   'same' => function($val, $targetName) {
-     *     if (fk_blankOrNull($val)) return true;
      *     $field = FormKit::inCheckField(); // 適用中のフィールド要素を取得します
      *     $target = $field->form()->field($targetName);
      *     return ($target and $val == $target->value());
      *   },
+     * ));
+     * FormKit::defRule(array(
+     *   FormKit::Rule('requiredIf', function($val, $targetName, $op = '', $expr = '') {
+     *   })
      * ));
      * </pre>
      * @param string|array $name
@@ -114,17 +118,59 @@ class FormKit
     {
         $rules = is_array($name) ? $name : array($name => $func);
         foreach ($rules as $name => $func) {
+            $rule = ($name instanceof Rule) ? $name : static::Rule($name, $func);
             if (static::$strict) {
-                if (isset(static::$rules[$name])) {
+                if (isset(static::$rules[$rule->name])) {
                     trigger_error('already exists', E_USER_WARNING);
                 }
-                if (!is_callable($func)) {
+                if (!is_callable($rule->func)) {
                     trigger_error('func was must be callable', E_USER_WARNING);
                 }
             }
-            is_callable($func) and (static::$rules[$name] = $func);
+            static::$rules[$rule->name] = $rule;
         }
     }
+
+    public static function defRuleMessage($name, $message = null, $lang = '')
+    {
+        $lang or $lang = self::$lang;
+        is_array($name) or ($name = array($name => $message));
+        foreach ($name as $_name => $_message) {
+            if (isset(static::$rules[$_name])) {
+                static::$rules[$_name]->setMessage($_message, $lang);
+            }
+        }
+    }
+
+    /**
+     * @return Field
+     */
+    public static function inCheckField()
+    {
+        return static::$inCheckField;
+    }
+
+    /**
+     * @return int
+     */
+    public static function inCheckIndex()
+    {
+        return static::$inCheckIndex;
+    }
+
+    /**
+     * @param Field $field
+     * @param int $index
+     */
+    public static function setInCheckField(Field $field, $index = -1)
+    {
+        static::$inCheckField = $field;
+        static::$inCheckIndex = $index;
+    }
+
+    // =========================
+    // Definition Filter
+    // =========================
 
     /**
      * フィルタを定義します
@@ -147,13 +193,17 @@ class FormKit
         }
     }
 
+    // =========================
+    // class loader
+    // =========================
     public static function loadClass($class)
     {
-        $paths = explode("\\", ltrim(strtolower($class), "\\"));
-        $package = array_shift($paths);
-        if ($paths and $package == 'formkit') {
-            $path = dirname(__FILE__).DIRECTORY_SEPARATOR.implode(DIRECTORY_SEPARATOR, $paths).'.php';
-            require $path.'';
+        if (strncmp($class, 'FormKit\\', 8) == 0) {
+            require dirname(__FILE__).DIRECTORY_SEPARATOR.str_replace('FormKit\\', '', $class).'.php'.'';
+        } elseif ($class == 'FK') {
+            class_alias('FormKit\\FormKit', 'FK');
+        } elseif (in_array($class, array('Form', 'Field', 'Filter', 'Rule'))) {
+            class_alias("FormKit\\$class", $class);
         }
     }
 }

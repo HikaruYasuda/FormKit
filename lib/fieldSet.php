@@ -40,7 +40,7 @@ class FieldSet implements \Iterator
     /**
      * @return string[]
      */
-    public function names()
+    public function fieldNames()
     {
         return array_keys($this->fields);
     }
@@ -50,19 +50,15 @@ class FieldSet implements \Iterator
      *
      * <pre>
      * Usage:
-     * add($fieldset);
-     * add($field);
+     * add($field_instance);
      * add(array(
-     *   $field,
+     *   $field_instance,
      *   'name1',
      *   'name2' => 'name2type',
-     *   'name3' => array('name3type'),
-     *   'name4' => array('name4type', 'name4label'),
-     *   'name5' => array('type' => 'name5type', more attributes...),
      * ));
-     * add('name5');
+     * add('name3');
      * </pre>
-     * @param Field|Field[]|string|string[]|FieldSet $fields
+     * @param Field|Field[]|string|string[] $fields
      * @return static
      * @throws \InvalidArgumentException
      */
@@ -70,35 +66,18 @@ class FieldSet implements \Iterator
     {
         is_array($fields) or ($fields = array($fields));
         foreach ($fields as $key => $val) {
-            // case Field instance array
-            if (is_object($val)) {
-                // case FieldSet instance
-                if ($val instanceof FieldSet) {
-                    $this->addFieldset($val);
-                } // case Field instance
-                elseif ($val instanceof Field) {
-                    $this->addFieldObject($val);
-                }
-            } // case [field name => field structure] array
-            elseif (is_string($key)) {
-                $this->addFieldStructure($key, $val);
-            } // case filed name
-            elseif (is_int($key) and is_string($val)) {
-                $this->addFieldStructure($val);
+            if (is_object($val) and $val instanceof Field) {
+                // case Field instance array
+                $field = $val;
+            } elseif (is_string($key)) {
+                // case [field name => field structure] array
+                $field = new Field($key, $val);
+            } elseif (is_int($key) and is_string($val)) {
+                // case filed name
+                $field = new Field($val, 'text');
             } else {
                 throw new \InvalidArgumentException;
             }
-        }
-        return $this;
-    }
-
-    /**
-     * @param FieldSet $fieldset
-     * @return static
-     */
-    public function addFieldset(FieldSet $fieldset)
-    {
-        foreach ($fieldset as $field) {
             $this->addFieldObject($field);
         }
         return $this;
@@ -113,34 +92,6 @@ class FieldSet implements \Iterator
     {
         $this->fields[$field->name()] = $field;
         return $this;
-    }
-
-    /**
-     * 連想配列でフィールドを追加します
-     *
-     * <pre>
-     * Usage:
-     * addFieldStructure('name1')
-     * addFieldStructure('name2', 'name2type')
-     * addFieldStructure('name3', array('name3type'))
-     * addFieldStructure('name4', array('name4type', 'name4label'))
-     * addFieldStructure('name5', array('type' => 'name5type', more attributes...))
-     * </pre>
-     * @param string $fieldName
-     * @param array|string $structure
-     * @return static
-     */
-    public function addFieldStructure($fieldName, $structure = array())
-    {
-        is_array($structure) or $structure = array($structure);
-        $type = isset($structure[0]) ? $structure[0] : '';
-        $label = isset($structure[1]) ? $structure[1] : '';
-
-        $field = new Field($fieldName, $type, $label);
-        foreach ($structure as $key => $val) {
-            $field->_setAttribute($key, $val);
-        }
-        return $this->addFieldObject($field);
     }
 
     /**

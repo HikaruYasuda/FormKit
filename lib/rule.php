@@ -3,8 +3,8 @@ namespace FormKit;
 
 class Rule
 {
-    const CheckBlank = 1;
-    const ArraySeparate = 2;
+    const CheckBlank = 1;// 1 << 0
+    const ArraySeparate = 2;// 1 << 1
 
     // =========================
     //
@@ -14,26 +14,63 @@ class Rule
     public $name;
     /** @var callable */
     public $func;
-    public $option = 0;
+    public $option = self::ArraySeparate;
+    /** @var string[] */
     public $messages = array();
 
-    public function __construct($name, $func, $option = self::ArraySeparate)
+    /**
+     * @param string $name
+     * @param callable $func
+     * @param string $message
+     * @param string $lang
+     */
+    public function __construct($name, $func, $message = '', $lang = 'ja')
     {
         $this->name = $name;
         $this->func = $func;
-        $this->option = $option;
+        $this->messages[$lang] = $message;
     }
 
     /**
-     * @param int $option
-     * @return static|int
+     * @param $flag
+     * @param bool $enable
+     * @return static
      */
-    public function option($option = null)
+    public function setFlag($flag, $enable = true)
     {
-        if (is_null($option)) {
-            return $this->option;
+        if ($enable) {
+            $this->option |= $flag;
+        } else {
+            $this->option &= (~$flag);
         }
-        $this->option = $option;
+        return $this;
+    }
+
+    /**
+     * @param bool $enable
+     * @return static
+     */
+    public function checkBlankFlag($enable = true)
+    {
+        return $this->setFlag(self::CheckBlank, $enable);
+    }
+
+    /**
+     * @param bool $enable
+     * @return static
+     */
+    public function arraySeparateFlag($enable = true)
+    {
+        return $this->setFlag(self::ArraySeparate, $enable);
+    }
+
+    /**
+     * @param callable $func
+     * @return static
+     */
+    public function setFunc($func)
+    {
+        $this->func = $func;
         return $this;
     }
 
@@ -42,18 +79,24 @@ class Rule
      * @param string $lang
      * @return static
      */
-    public function setMessage($message, $lang = 'ja')
+    public function setMessage($message, $lang = '')
     {
+        $lang or $lang = FormKit::$lang;
         $this->messages[$lang] = $message;
         return $this;
     }
 
-    public function getMessage($fieldName, $args, $lang = 'ja')
+    /**
+     * @param string $fieldName
+     * @param array $args
+     * @param string $lang
+     * @return string
+     */
+    public function getMessage($fieldName, $args, $lang = '')
     {
+        $lang or $lang = FormKit::$lang;
         if (isset($this->messages[$lang])) {
             $message = $this->messages[$lang];
-        } elseif ($this->messages) {
-            $message = current($this->messages);
         } else {
             $message = '';
         }

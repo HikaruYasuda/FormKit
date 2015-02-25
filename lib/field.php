@@ -49,15 +49,10 @@ class Field extends FieldCore
 
     /**
      * 親フォームを取得または設定します
-     * @param Form $form
-     * @return static|FieldSet
+     * @return Form|FieldSet
      */
-    public function form(Form $form = null)
+    public function form()
     {
-        if ($form) {
-            $this->fieldset = $form;
-            return $this;
-        }
         return $this->fieldset;
     }
 

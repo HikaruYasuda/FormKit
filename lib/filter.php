@@ -9,7 +9,7 @@ namespace FormKit;
  * @since PHP 5.1
  * @version 1.0.0
  */
-class FormKit_Filter {
+class Filter {
 	/**
 	 * クエリリストを使ってフィルタリングします
 	 * @param mixed $value
