@@ -26,6 +26,7 @@ class Form_Edit extends \FormKit\Form
 $bookmark = new Entity_Bookmark();
 
 $form = new Form_Edit($bookmark);
+$form->input();
 ?>
 <!DOCTYPE html>
 <html>
@@ -33,8 +34,13 @@ $form = new Form_Edit($bookmark);
     <meta charset="utf-8">
 </head>
 <body>
-<form>
-    <?=$form->toHTML()?>
+<form action="" method="get">
+    <p><?php echo $form->toHTML('title')?></p>
+    <p><?php echo $form->toHTML('remarks')?></p>
+    <p><?php echo $form->toHTML('category')?></p>
+    <p><?php echo $form->toHTML('secret')?></p>
+    <p><?php echo $form->toHTML('ad[name]')?></p>
+    <button>送信</button>
 </form>
 </body>
 </html>

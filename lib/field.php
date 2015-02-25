@@ -293,22 +293,53 @@ class Field extends FieldCore
         switch ($type) {
             case 'checkbox':
             case 'radio':
-                foreach ($this->_options as $k => $v) {
-                    $html .= '<label><input type="' . $type . '" name="' . $name . '" value="' . $k . '" ' . $attribute . '/> ' . $v . '</label>';
+                if ($this->_options) {
+                    $values = fk_toStringArray($value);
+                    foreach ($this->_options as $k => $v) {
+                        $val = fk_h($k);
+                        $label = fk_h($v);
+                        $checked = in_array((string)$k, $values) ? 'checked="checked"' : '';
+                        $html .= "<label><input type=\"$type\" name=\"$name\" value=\"$val\" $checked $attribute/>$label</label>";
+                    }
+                } else {
+                    $val = fk_h($value);
+                    $label = fk_h($this->label());
+                    $html .= "<label><input type=\"$type\" name=\"$name\" value=\"$val\" $attribute/>$label</label>";
                 }
-                break;
+                return $html;
+            case 'bool':
+                $label = fk_h($this->label());
+                $checked = $value ? 'checked="checked"' : '';
+                $html .= "<label><input type=\"checkbox\" name=\"$name\" value=\"1\" $checked $attribute/>$label</label>";
+                return $html;
             case 'select':
-            case 'file':
-                $html = '<input type="file" name="' . $name . '" ' . $attribute . '/>';
-                break;
+                $html = "<select name=\"$name\" $attribute>";
+                foreach ($this->_options as $k => $v) {
+                    if (is_array($v)) {
+                        $label = fk_h($k);
+                        $html .= "<optgroup label=\"$label\">";
+                        foreach ($v as $_k => $_v) {
+                            $label = fk_h($_k);
+                            $val = fk_h($_v);
+                            $html .= "<option value=\"$val\">$label</option>";
+                        }
+                        $html .= "</optgroup>";
+                    } else {
+                        $label = fk_h($k);
+                        $val = fk_h($v);
+                        $html .= "<option value=\"$val\">$label</option>";
+                    }
+                    $html .= "<option>";
+                }
+                $html .= "</select>";
+                return $html;
             case 'textarea':
-                $html = '<textarea name="' . $name . '" ' . $attribute . '>' . $value . '</textarea>';
-                break;
+                $val = fk_h($value);
+                return "<textarea name=\"$name\" $attribute>$val</textarea>";
             default:// text,hidden,password...etc
-                $html = '<input type="' . $type . '" name="' . $name . '" value="' . $value . '" ' . $attribute . '/>';
-                break;
+                $val = fk_h($value);
+                return "<input type=\"$type\" name=\"$name\" value=\"$val\" $attribute/>";
         }
-        return $html;
     }
 
     /** nullと空文字を除外します */

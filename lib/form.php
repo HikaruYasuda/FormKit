@@ -156,9 +156,11 @@ class Form extends FieldSet implements \ArrayAccess
      * @param mixed $value 第一引数でフィールド名を指定した場合の値
      * @return static
      */
-    public function input($fieldName, $value = Field::UNSPECIFIED)
+    public function input($fieldName = Field::UNSPECIFIED, $value = Field::UNSPECIFIED)
     {
-        if (is_string($fieldName)) {
+        if ($fieldName == Field::UNSPECIFIED) {
+            $map = $_REQUEST;
+        } elseif (is_string($fieldName)) {
             $map = array($fieldName => $value);
         } elseif (is_array($fieldName) or is_object($fieldName)) {
             $map = (array)$fieldName;
@@ -443,7 +445,7 @@ class Form extends FieldSet implements \ArrayAccess
             foreach ($this->field($fieldName) as $field) {
                 $html[] = $field->html();
             }
-            return implode('\n', $html);
+            return implode("\n", $html);
         }
 		$field = $this->field($fieldName);
 		return is_null($field) ? '' : $field->html();

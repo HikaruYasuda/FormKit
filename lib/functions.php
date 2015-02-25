@@ -71,3 +71,18 @@ function fk_escapeExplode($delimiter, $string, $escape = '', $replace = '#+@+#')
         return str_replace($replace, $escape, $s);
     }, $split);
 }
+
+function fk_h($string)
+{
+    return htmlspecialchars($string, ENT_QUOTES);
+}
+
+function fk_toStringArray($var)
+{
+    if (is_null($var)) {
+        return array();
+    }
+    return array_map(function($v) {
+        return (string)$v;
+    }, (array)$var);
+}
