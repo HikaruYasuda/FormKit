@@ -61,11 +61,9 @@ function fk_pathGet($value, $path)
     return $value;
 }
 
-function fk_escapeExplode($delimiter, $string, $escape = '', $replace = '#+@+#')
+function fk_escapeExplode($delimiter, $string, $escapeString = "\\", $replace = '#+@+#')
 {
-    if (empty($escape)) {
-        return explode($delimiter, $string);
-    }
+    $escape = "$escapeString$delimiter";
     $split = explode($delimiter, str_replace($escape, $replace, $string));
     return array_map(function($s) use ($replace, $escape) {
         return str_replace($replace, $escape, $s);
@@ -74,6 +72,9 @@ function fk_escapeExplode($delimiter, $string, $escape = '', $replace = '#+@+#')
 
 function fk_h($string)
 {
+    is_null($string) and ($string = '');
+    is_array($string) and ($string = '');
+    is_object($string) and !method_exists($string, '__toString') and ($string = '');
     return htmlspecialchars($string, ENT_QUOTES);
 }
 
@@ -86,3 +87,10 @@ function fk_toStringArray($var)
         return (string)$v;
     }, (array)$var);
 }
+
+function fk_ref($newObj)
+{
+    return $newObj;
+}
+
+defined('CLOSURE_CAN_BIND', (PHP_MAJOR_VERSION > 5 or (PHP_MAJOR_VERSION == 5 and PHP_MINOR_VERSION >= 4)));

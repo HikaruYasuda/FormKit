@@ -28,21 +28,37 @@ class FormKit
     private static $initialized = false;
 
     public static $lang = 'ja';
-    /** @var Field */
-    protected static $inCheckField;
-    /** @var int */
-    protected static $inCheckIndex = -1;
+    /** @var array */
+    protected static $inCheckFieldList;
 
     // =========================
     // life cycle
     // =========================
 
-    public static function init()
+    public static function init($settings = array())
     {
         if (!static::$initialized) {
             spl_autoload_register(get_called_class().'::loadClass', true, true);
-            require dirname(__FILE__).DIRECTORY_SEPARATOR.'functions.php';
+            require __DIR__.'/functions.php';
         }
+
+        foreach (array('strict', 'rules', 'filters', 'lang') as $item) {
+            if (array_key_exists($item, $settings)) {
+                static::$$item = $settings[$item];
+            }
+        }
+    }
+
+    public static function importBuiltInFilters()
+    {
+        $refClass = new \ReflectionClass(__NAMESPACE__.'\Filter');
+        $filters = array();
+        foreach ($refClass->getMethods(\ReflectionMethod::IS_STATIC | \ReflectionMethod::IS_PUBLIC) as $method) {
+            $name = $method->name;
+            $message = '';
+            $filters[$name] = new static($name, "{$method->class}::$name", $message);
+        }
+        return $filters;
     }
 
     // =========================
@@ -53,7 +69,7 @@ class FormKit
      * @param string $name
      * @return Form
      */
-    public static function Form($name = 'default')
+    public static function Form($name = 'form')
     {
         static::$forms[$name] = new Form();
         return static::$forms[$name];
@@ -147,25 +163,34 @@ class FormKit
      */
     public static function inCheckField()
     {
-        return static::$inCheckField;
+        $field = static::$inCheckFieldList[0];
+        return $field ? $field['field'] : null;
     }
 
     /**
-     * @return int
+     * @return string
      */
-    public static function inCheckIndex()
+    public static function inCheckKey()
     {
-        return static::$inCheckIndex;
+        $field = static::$inCheckFieldList[0];
+        return $field ? $field['path'] : null;
     }
 
     /**
      * @param Field $field
-     * @param int $index
+     * @param string $key
      */
-    public static function setInCheckField(Field $field, $index = -1)
+    public static function pushInCheckField(Field $field, $key = '')
     {
-        static::$inCheckField = $field;
-        static::$inCheckIndex = $index;
+        array_unshift(static::$inCheckFieldList, array(
+            'field' => $field,
+            'path' => $key,
+        ));
+    }
+
+    public static function popInCheckField()
+    {
+        array_shift(static::$inCheckFieldList);
     }
 
     // =========================

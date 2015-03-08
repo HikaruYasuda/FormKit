@@ -7,270 +7,292 @@ abstract class FieldCore
     const UNSPECIFIED = '!hXT(s8P%hq%';
 
     /** @var string フィールド名 */
-    public $_name = '';
+    protected $_name = '';
     /** @var string タイプ */
-    public $_type = '';
+    protected $_type = '';
     /** @var string ラベル */
-    public $_label = '';
+    protected $_label = '';
     /** @var string 値 */
-    public $_value = self::UNSPECIFIED;
+    protected $_value = self::UNSPECIFIED;
     /** @var mixed デフォルト値 */
-    public $_default = null;
+    protected $_default = '';
     /** @var array 選択オプション [key => value] */
-    public $_options = array();
-    /** @var array[] 入力フィルター */
-    public $_filters = array();
-    /** @var array[] バリデーションルール */
-    public $_rules = array();
+    protected $_options = array();
     /** @var array 属性 [key => value] */
-    public $_attributes = array();
+    protected $_attributes = array();
     /** @var array タグ [key => value] */
-    public $_tags = array();
-    /** @var bool バリデーション要否 */
-    public $_willValidation = true;
+    protected $_tags = array();
 
     /**
-     * 値を設定します
-     * @param mixed $value
-     * @return static
+     * コンストラクタ
+     * @param string $name
+     * @param string $type
+     * @param string $label
      */
-    public function _setValue($value)
+    function __construct($name, $type = '', $label = '')
     {
+        $this->_name = $name;
+        isset($type) and ($this->_type = $type);
+        isset($label) and ($this->_label = $label);
+    }
+
+    // ===================================
+    // Basic Properties
+    // ===================================
+
+    /**
+     * フィールド名を設定または取得します
+     * @param string $name
+     * @return string|static
+     */
+    public function name($name = self::UNSPECIFIED)
+    {
+        if ($name === self::UNSPECIFIED) {
+            return $this->_name;
+        }
+        if (is_string($name)) {
+            $this->_name = $name;
+        } else {
+            FormKit::$strict and trigger_error('parameter 1 must be a string', E_USER_WARNING);
+        }
+        return $this;
+    }
+
+    /**
+     * タイプを設定または取得します
+     * @param string $type
+     * @return string|static
+     */
+    public function type($type = self::UNSPECIFIED)
+    {
+        if ($type === self::UNSPECIFIED) {
+            return $this->_type;
+        }
+        if (is_string($type)) {
+            $this->_type = $type;
+        } else {
+            FormKit::$strict and trigger_error('parameter 1 must be a string', E_USER_WARNING);
+        }
+        return $this;
+    }
+
+    /**
+     * ラベルを設定または取得します
+     * @param string $label
+     * @return string|static
+     */
+    public function label($label = self::UNSPECIFIED)
+    {
+        if ($label === self::UNSPECIFIED) {
+            return $this->_label;
+        }
+        $this->_label = $label;
+        return $this;
+    }
+
+    // ===================================
+    // Access To Field Value
+    // ===================================
+
+    /**
+     * 値を設定または取得します
+     * @param string $value
+     * @return mixed|static
+     */
+    public function value($value = self::UNSPECIFIED)
+    {
+        if ($value === self::UNSPECIFIED) {
+            return $this->getPlaneValue($this->def());
+        }
         $this->_value = $value;
         return $this;
     }
 
     /**
-     * 値を取得します
-     * @return mixed
+     * フィルタやデフォルト値を適用する前の値を取得します
+     * @param string $default
+     * @return string
      */
-    public function _getValue()
+    public function getPlaneValue($default = null)
     {
-        return $this->_value === self::UNSPECIFIED ? $this->_getDefault() : $this->_value;
+        return $this->_value === self::UNSPECIFIED ? $default : $this->_value;
     }
 
     /**
-     * デフォルト値を設定します
+     * デフォルト値を設定または取得します
      * @param mixed $value
-     * @return static
+     * @return mixed|static
      */
-    public function _setDefault($value)
+    public function def($value = self::UNSPECIFIED)
     {
+        if ($value === self::UNSPECIFIED) {
+            return $this->_default;
+        }
         $this->_default = $value;
         return $this;
     }
 
     /**
-     * デフォルト値を取得します
-     * @return mixed
+     * デフォルト値と等しいか判定します
+     * @param bool $strict TRUEの場合型を含めた判定をします
+     * @return bool
      */
-    public function _getDefault()
+    public function isDefault($strict = false)
     {
-        return $this->_default;
+        $value = $this->value();
+        return $strict ? ($value === $this->_default) : ($value == $this->_default);
     }
 
     /**
-     * フォームオプションを設定します
-     * @param array $values
-     * @return static
+     * 値を持っているか判定します
+     * @param bool $includeEmpty 空文字列を値としてカウントするか
+     * @return bool 空文字列、null、空の配列、未定義のいずれかの場合false、それ以外の場合true
      */
-    public function _setOptions($values)
+    public function hasValue($includeEmpty = false)
     {
-        if (is_array($values)) {
-            $this->_options = $values;
-        } else {
-            $this->_options = array();
+        $value = $this->value();
+        if ($includeEmpty and $value === '') {
+            return true;
         }
+        return !in_array($value, array(null, array(), ''), true);
+    }
+
+    /**
+     * フォームオプションを設定または取得します
+     * @param array|string $value
+     * @return array|static
+     */
+    public function options($value = self::UNSPECIFIED)
+    {
+        if ($value === self::UNSPECIFIED) {
+            return $this->_options;
+        }
+        $this->_options = (array)$value;
         return $this;
     }
 
     /**
-     * フォームオプションを取得します
-     * @return array
-     */
-    public function _getOptions()
-    {
-        return $this->_options;
-    }
-
-    /**
-     * オプションラベルを取得します
+     * 選択中オプションのラベルを取得します
      * @param string $value
      * @param string $default
      * @return string
      */
-    public function _getOptionLabel($value = null, $default = '')
+    public function optionLabel($value = null, $default = '')
     {
         if (is_null($value)) {
-            $value = $this->_getValue();
+            $value = $this->value();
         }
         return array_key_exists($value, $this->_options) ? $this->_options[$value] : $default;
     }
 
+    // ===================================
+    // Setting Tags
+    // ===================================
+
     /**
-     * ルールを追加します
-     * @param string|array $rule 追加するルール
-     * <br>これらは同じルールを定義します
-     * <pre>
-     * $field->_addRule('required|maxLength:50');
-     * $field->_addRule(array(
-     *     'required',
-     *     'maxLength' => 50,
-     * ));
-     * </pre>
+     * タグを設定または取得します
+     * @param string $name タグ名
+     * @param mixed $value
+     * @param mixed $default
+     * @return mixed|static
+     */
+    public function tag($name, $value = self::UNSPECIFIED, $default = null)
+    {
+        if ($value === self::UNSPECIFIED) {
+            return array_key_exists($name, $this->_tags) ? $this->_tags[$name] : $default;
+        }
+        $this->_tags[$name] = $value;
+        return $this;
+    }
+
+    /**
+     * タグの設定を解除します
+     * @param string $name
      * @return static
      */
-    public function _addRule($rule)
+    public function removeTag($name = null)
     {
-        if (is_string($rule)) {
-            $rule = fk_escapeExplode('|', $rule, '\|');
-        }
-        if (is_array($rule)) {
-            foreach ($rule as $name => $args) {
-                if (is_int($name)) {
-                    $args = array_map('trim', fk_escapeExplode(':', $name, '\:'));
-                    $name = array_shift($args);
-                }
-                $args = is_null($args) ? array() : (array)$args;
-                if (FormKit::$strict and isset($this->_rules[$name])) {
-                    trigger_error("already exists [$name]", E_USER_WARNING);
-                }
-                if (FormKit::$strict and isset(FormKit::$rules[$name])) {
-                    trigger_error("undefined rule [$name]", E_USER_WARNING);
-                }
-                $this->_rules[$name] = $args;
-            }
-        } elseif (FormKit::$strict) {
-            trigger_error('parameter $rule must be a string or an array');
+        if (is_null($name)) {
+            $this->_tags = array();
+        } elseif (array_key_exists($name, $this->_tags)) {
+            unset($this->_tags[$name]);
         }
         return $this;
     }
 
-    /**
-     * ルールを削除します
-     * @param string $rule
-     * @return $this
-     */
-    public function _clearRule($rule = null)
-    {
-        if ($rule) {
-            is_array($rule) or ($rule = array_map('trim', explode('|', $rule)));
-            foreach ($rule as $aRule) {
-                if (isset($this->_rules[$aRule])) {
-                    unset($this->_rules[$aRule]);
-                }
-            }
-        } else {
-            $this->_rules = array();
-        }
-        return $this;
-    }
-
-    /**
-     * バリデーション要否を設定します
-     * @param $enable
-     */
-    public function _willValidation($enable)
-    {
-        $this->_willValidation = $enable;
-    }
-
-    /**
-     * フィルタを追加します
-     * @param string|array $filter 追加するフィルタ
-     * <br>これらは同じフィルタを定義します
-     * <pre>
-     * $field->_addFilter('trim|replace:is:are');
-     * $field->_addFilter(array(
-     *     'trim',
-     *     'replace' => array('is', 'are'),
-     * ));
-     * </pre>
-     * @return static
-     */
-    public function _addFilter($filter)
-    {
-        if (is_string($filter)) {
-            $filter = fk_escapeExplode('|', $filter, '\|');
-        }
-        if (is_array($filter)) {
-            foreach ($filter as $name => $args) {
-                if (is_int($name)) {
-                    $args = array_map('trim', fk_escapeExplode(':', $name, '\:'));
-                    $name = array_shift($args);
-                }
-                $args = is_null($args) ? array() : (array)$args;
-                if (FormKit::$strict and isset($this->_filters[$name])) {
-                    trigger_error("already exists [$name]", E_USER_WARNING);
-                }
-                if (FormKit::$strict and isset(FormKit::$filters[$name])) {
-                    trigger_error("undefined rule [$name]", E_USER_WARNING);
-                }
-                $this->_filters[$name] = $args;
-            }
-        } elseif (FormKit::$strict) {
-            trigger_error('parameter $filter must be a string or an array');
-        }
-        return $this;
-    }
-
-    /**
-     * ルールを削除します
-     * @param string $filter
-     * @return $this
-     */
-    public function _clearFilter($filter = null)
-    {
-        if ($filter) {
-            is_array($filter) or ($filter = array_map('trim', explode('|', $filter)));
-            foreach ($filter as $aFilter) {
-                if (isset($this->_filters[$aFilter])) {
-                    unset($this->_filters[$aFilter]);
-                }
-            }
-        } else {
-            $this->_filters = array();
-        }
-        return $this;
-    }
+    // ===================================
+    // Setting Attributes
+    // ===================================
 
     /**
      * 属性値を設定します
-     * @param string $name
+     * @param string|array $name
      * @param mixed $value
      * @return static
      */
-    public function _setAttribute($name, $value)
+    public function setAttribute($name, $value)
     {
-        switch (strtolower($name)) {
-            case 'name':
-                $this->_name = $value;
-                return $this;
-            case 'type':
-                $this->_type = $value;
-                return $this;
-            case 'value':
-                return $this->_setValue($value);
+        if (is_string($name)) {
+            $attributes = array($name => $value);
+        } else {
+            $attributes = $name;
         }
-        if (FormKit::$strict and isset($this->_attributes[$name])) {
-            trigger_error("already exists [$name]", E_USER_WARNING);
+        foreach ($attributes as $name => $value) {
+            if (is_string($name)) {
+                $lcName = strtolower($name);
+                if ($lcName === 'name') {
+                    $this->_name = $value;
+                } elseif ($lcName === 'type') {
+                    $this->_type = $value;
+                } elseif ($lcName === 'value') {
+                    $this->value($value);
+                } elseif ($name !== '') {
+                    $this->_attributes[$name] = $value;
+                }
+            } else {
+                FormKit::$strict and trigger_error('invalid argument');
+            }
         }
-        $this->_attributes[$name] = $value;
         return $this;
     }
 
     /**
-     * 属性値を連想配列で上書きします
-     * @param array $attributes
-     * @return static
+     * 属性値を取得します
+     * @param string|string[] $name 属性名
+     * @param mixed $default 未定義に返すデフォルト値
+     * @param bool $listCleaning TRUEの場合、配列で返す際の存在しない属性値は返しません
+     * @return mixed
      */
-    public function _setAttributes(array $attributes)
+    public function getAttribute($name = null, $default = null, $listCleaning = true)
     {
-        $this->_attributes = array();
-        foreach ($attributes as $name => $value) {
-            $this->_setAttribute($name, $value);
+        $attributes = $this->getAllAttributes();
+        if (is_null($name)) {
+            return $attributes;
+        } elseif (is_string($name)) {
+            return array_key_exists($name, $attributes) ? $attributes[$name] : $default;
         }
-        return $this;
+        $array = array();
+        foreach ($name as $aName) {
+            if (array_key_exists($aName, $attributes)) {
+                $array[$aName] = $attributes[$aName];
+            } elseif ( ! $listCleaning) {
+                $array[$aName] = $default;
+            }
+        }
+        return $array;
+    }
+
+    /**
+     * すべての属性値を連想配列で取得します
+     * @return array
+     */
+    protected function getAllAttributes()
+    {
+        return array(
+            'name' => $this->name(),
+            'type' => $this->type(),
+            'value' => $this->value(),
+        ) + $this->_attributes;
     }
 
     /**
@@ -278,167 +300,13 @@ abstract class FieldCore
      * @param string $name
      * @return static
      */
-    public function _clearAttribute($name = null)
+    public function removeAttribute($name = null)
     {
         if (is_null($name)) {
             $this->_attributes = array();
-        } else {
-            if (array_key_exists($name, $this->_attributes)) {
-                unset($this->_attributes[$name]);
-            }
+        } elseif (array_key_exists($name, $this->_attributes)) {
+            unset($this->_attributes[$name]);
         }
         return $this;
-    }
-
-    /**
-     * すべての属性値を連想配列で取得します
-     * @return array
-     */
-    public function _getAttributes()
-    {
-        return array(
-            'name' => $this->_name,
-            'type' => $this->_type,
-            'value' => $this->_getValue(),
-        ) + $this->_attributes;
-    }
-
-    /**
-     * 属性値を取得します
-     * @param string $name 属性名
-     * @param mixed $default
-     * @return mixed
-     */
-    public function _getAttribute($name, $default = null)
-    {
-        switch (strtolower($name)) {
-            case 'name':
-                return $this->_name;
-            case 'type':
-                return $this->_type;
-            case 'value':
-                return $this->_getValue();
-        }
-        return array_key_exists($name, $this->_attributes) ? $this->_attributes[$name] : $default;
-    }
-
-    /**
-     * タグを設定します
-     * @param string $name タグ名
-     * @param mixed $value 値
-     * @return static
-     */
-    public function _setTag($name, $value)
-    {
-        if (FormKit::$strict and isset($this->_tags[$name])) {
-            trigger_error('already exists', E_USER_WARNING);
-        }
-        $this->_tags[$name] = $value;
-        return $this;
-    }
-
-    /**
-     * @param $name
-     * @return static
-     */
-    public function _clearTag($name = null)
-    {
-        if (is_null($name)) {
-            $this->_tags = array();
-        } else {
-            if (array_key_exists($name, $this->_tags)) {
-                unset($this->_tags[$name]);
-            }
-        }
-        return $this;
-    }
-
-    /**
-     * タグを取得します
-     * @param string $name タグ名
-     * @param mixed $default
-     * @return mixed
-     */
-    public function _getTag($name, $default = null)
-    {
-        return array_key_exists($name, $this->_tags) ? $this->_tags[$name] : $default;
-    }
-
-    /**
-     *
-     */
-    public function _validity()
-    {
-        foreach ($this->_rules as $name => $args) {
-            $result = true;
-            $values = $this->_getValue();
-        }
-        if ($field->rule() && count($field->rule()) > 0)
-        {
-            foreach ($field->rule() as $rule_name => $args)
-            {
-                $result = TRUE;
-                $values = is_array($field->value()) ? $field->value() : array($field->value());
-                if ($rule_name == 'required' && is_array($field->value()))
-                {
-                    $result = FALSE;
-                    foreach ($values as $value)
-                    {
-                        if ( ! ($value === '' || is_null($value) || $value === FALSE))
-                        {
-                            $result = TRUE;
-                        }
-                    }
-                    $values = array();
-                }
-                foreach ($values as $value)
-                {
-                    if ($result !== TRUE)
-                    {
-                        break;
-                    }
-
-                    $blank_or_null = ($value === '' || is_null($value) || $value === FALSE);
-
-                    if ($rule_name == 'required')
-                    {
-                        $result = ! $blank_or_null;
-                    }
-                    elseif ( ! $blank_or_null && $rule_name == 'in_options')
-                    {
-                        $result = $field->options() && str_in_array($value, array_keys($field->options()));
-                    }
-                    elseif (method_exists($this, $rule_name))
-                    {
-                        if ( ! $blank_or_null)
-                        {
-                            $func_args = array_merge(array($value), $args);
-                            $result = call_user_func_array(array($this, $rule_name), $func_args);
-                        }
-                    }
-                    else
-                    {
-                        $result = $this->call_method($rule_name, $field, $args);
-                        break;
-                    }
-                }
-
-                if (is_string($result))
-                {
-                    $this->set_error_msg($field_name, $result);
-                    break;
-                }
-                elseif ($result == FALSE)
-                {
-                    if ($rule_name == 'required' && in_array($field->type(), array('select', 'checkbox', 'radio')))
-                    {
-                        $rule_name = 'required_select';
-                    }
-                    $message = $this->make_error_message($rule_name, $field->label(), $args);
-                    $this->set_error_msg($field_name, $message);
-                    break;
-                }
-            }
-        }
     }
 }

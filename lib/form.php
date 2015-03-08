@@ -8,8 +8,11 @@ namespace FormKit;
  * @since PHP 5.3
  * @version 1.0.0
  */
-class Form extends FieldSet implements \ArrayAccess
+class Form implements \Traversable, \Countable
 {
+    /** @var FieldSet */
+    public $fieldSet;
+
     // =========================
     // Life cycle
     // =========================
@@ -24,8 +27,12 @@ class Form extends FieldSet implements \ArrayAccess
 
     public $_error_message_placeholder = '';
 
-    public function __construct()
+    /**
+     * @param FieldSet $fieldSet
+     */
+    public function __construct(FieldSet $fieldSet = null)
     {
+        $this->fieldSet = $fieldSet;
     }
 
     // =========================
@@ -38,28 +45,13 @@ class Form extends FieldSet implements \ArrayAccess
      * <pre>
      * Usage:
      * $form->add(FK::Field('first_name', 'text', '名')->rule('maxLength:50'));
-     * $form->add('email_address'); // = $form->add(FK::Field('email_address'))
      * </pre>
      * @param Field|Field[]|string|string[]|FieldSet $field
      * @return static
      */
     public function add($field)
     {
-        parent::add($field);
-        return $this;
-    }
-
-    /**
-     * フィールドインスタンスを追加します
-     * @param Field $field
-     * @return static
-     */
-    public function addFieldObject(Field $field)
-    {
-        parent::addFieldObject($field);
-        foreach ($this->fields as $field) {
-            $field->fieldset = $this;
-        }
+        $this->fieldSet->add($field);
         return $this;
     }
 
@@ -93,7 +85,7 @@ class Form extends FieldSet implements \ArrayAccess
      * // フィールド名リストに存在しないフィールド名があった場合でも配列形式で返します
      * // array(0) { }
      * </pre>
-     * @param string[]|string|int $fieldName 取得するフィールドのフィールド名、またはフィールド名のリスト。
+     * @param string $fieldName 取得するフィールドのフィールド名、またはフィールド名のリスト。
      * @return Field|Field[] 引数がフィールド名の場合、対応するフィールド要素を返します。
      * 引数がフィールド名リストの場合はフィールド名をキーにしたフィールドの配列、
      * 引数がない、またはNULLの場合は全フィールドの配列を返します。
@@ -101,7 +93,11 @@ class Form extends FieldSet implements \ArrayAccess
      */
     public function field($fieldName = null)
     {
-        return parent::get($fieldName);
+        if (is_null($fieldName)) {
+            return $this->fieldSet->toMap();
+        }
+        is_string($fieldName) and ($fieldName = array_map('trim', explode(',', $fieldName)));
+        return $this->fieldSet->get($fieldName);
     }
 
     /**
@@ -111,7 +107,28 @@ class Form extends FieldSet implements \ArrayAccess
      */
     public function remove($fieldName = null)
     {
-        return parent::remove($fieldName);
+        is_string($fieldName) and ($fieldName = array_map('trim', explode(',', $fieldName)));
+        $this->fieldSet->remove($fieldName);
+        return $this;
+    }
+
+    /**
+     * 指定されたフィールド名のフィールドがフィールドリスト内に存在するか判定します
+     * @param string $fieldName 判定するフィールド名
+     * @return bool 存在する場合TRUE、しない場合FALSEを返します。
+     */
+    public function exists($fieldName)
+    {
+        return $this->fieldSet->exists($fieldName);
+    }
+
+    /**
+     * フィールド数を取得します
+     * @return int フィールド数
+     */
+    public function count()
+    {
+        return $this->fieldSet->count();
     }
 
     // =========================
@@ -138,13 +155,13 @@ class Form extends FieldSet implements \ArrayAccess
             $path = array_shift($paths);
             return array($root, is_string($path) ? $path : '');
         };
-        $fieldNames = is_null($fieldNames) ? parent::fieldNames() : (array)$fieldNames;
+        $fieldNames = is_null($fieldNames) ? $this->fieldSet->fieldNames() : (array)$fieldNames;
         $values = array();
         foreach ($fieldNames as $fieldName) {
             list($fieldName, $path) = $parse($fieldName);
-            $field = parent::get($fieldName);
+            $field = $this->field($fieldName);
             if ($field) {
-                $values[$fieldName] = fk_pathGet($field->_getValue(), $path);
+                $values[$fieldName] = fk_pathGet($field->value(), $path);
             }
         }
         return $values;
@@ -156,9 +173,9 @@ class Form extends FieldSet implements \ArrayAccess
      * @param mixed $value 第一引数でフィールド名を指定した場合の値
      * @return static
      */
-    public function input($fieldName = Field::UNSPECIFIED, $value = Field::UNSPECIFIED)
+    public function input($fieldName = null, $value = Field::UNSPECIFIED)
     {
-        if ($fieldName == Field::UNSPECIFIED) {
+        if (is_null($fieldName)) {
             $map = $_REQUEST;
         } elseif (is_string($fieldName)) {
             $map = array($fieldName => $value);
@@ -168,10 +185,21 @@ class Form extends FieldSet implements \ArrayAccess
             throw new \InvalidArgumentException;
         }
         foreach ($map as $fieldName => $value) {
-            $field = parent::get($fieldName);
-            $field and $field->_setValue($value);
+            $field = $this->field($fieldName);
+            $field and $field->value($value);
         }
         return $this;
+    }
+
+    /**
+     * パラメータを設定します
+     * @param object|string[]|string $field_name パラメータのキー、またはキーと値がペアになった連想配列かオブジェクト
+     * @param mixed $value 第一引数でフィールド名を指定した場合の値
+     * @return static
+     */
+    public function set_parameters($field_name, $value = Field::UNSPECIFIED)
+    {
+        return $this->input($field_name, $value);
     }
 
     // =========================
@@ -206,180 +234,137 @@ class Form extends FieldSet implements \ArrayAccess
     // Form attributes
     // =========================
 
-    public function setAttr($attr, $value = null)
-    {
-
-    }
-
-    public function attr($attr, $default = null)
-    {
-
+    /**
+     * フィールド名とペアになったパラメータリストを取得します
+     * @param string[]|string $field_name
+     * @return string[]
+     * @throws
+     */
+    public function get_parameter_list($field_name) {
+        if (is_array($field_name)) {
+            $param_list = array();
+            foreach ($field_name as $a_field_name) {
+                $param_list[$a_field_name] =
+                    $this->exists($a_field_name) ? $this->field($a_field_name)->value() : NULL;
+            }
+            return $param_list;
+        } elseif (is_string($field_name)) {
+            return array($field_name =>
+                $this->exists($field_name) ? $this->field($field_name)->value() : NULL);
+        }
+        throw new \InvalidArgumentException();
     }
 
     /**
-     * パラメータを設定します
-     * @param object|string[]|string $field_name パラメータのキー、またはキーと値がペアになった連想配列かオブジェクト
-     * @param mixed $value 第一引数でフィールド名を指定した場合の値
-     * @return self
-     * @throws
+     *
+     * @param string[] $exclude_params
+     * @param string[] $target_params
+     * @return array
      */
-    public function set_parameters($field_name, $value = Field::UNSPECIFIED)
+    public function get_queries($exclude_params = null, $target_params = null)
     {
-        return $this->input($field_name, $value);
+        $exclude_params = empty($exclude_params) ? array() : array_flip($exclude_params);
+        $target_params = empty($target_params) ? array() : array_flip($target_params);
+
+        $queries = array();
+        /** @var Field $field */
+        foreach ($this->fieldSet as $field) {
+            if (isset($exclude_params[$field->name()]) || ($target_params && ! isset($target_params[$field->name()]))) {
+                continue;
+            }
+            $value = $field->value();
+            if ($value !== null and $value !== '') {
+                if ($field->type() === 'checkbox' and $field->value() == 0) {
+                    continue;
+                }
+                $queries[$field->name()] = $field->value();
+            }
+        }
+        return $queries;
     }
 
-	/**
-	 * フィールド名とペアになったパラメータリストを取得します
-	 * @param string[]|string $field_name
-	 * @return string[]
-	 * @throws
-	 */
-	public function get_parameter_list($field_name) {
-		if (is_array($field_name)) {
-			$param_list = array();
-			foreach ($field_name as $a_field_name) {
-				$param_list[$a_field_name] =
-					$this->exists($a_field_name) ? $this->field($a_field_name)->value() : NULL;
-			}
-			return $param_list;
-		} elseif (is_string($field_name)) {
-			return array($field_name =>
-				$this->exists($field_name) ? $this->field($field_name)->value() : NULL);
-		}
-		throw new \InvalidArgumentException();
-	}
+    /**
+     * フォームフィールドの値からクエリ文字列を取得します。
+     * @param string[] $exclude_params
+     * @param string[] $target_params
+     * @return string
+     */
+    public function get_query_string($exclude_params = null, $target_params = null)
+    {
+        $queries = $this->get_queries($exclude_params, $target_params);
+        return count($queries) ? '?'.http_build_query($queries) : '';
+    }
 
+    /**
+     * 入力値が存在するかを取得します
+     * @param string[]|string $field_name
+     * @param bool $everyone すべてのフィールドに入力がある場合TRUEを返します。配列指定の場合に有効です。
+     * @return bool
+     */
+    public function has_value($field_name = null, $everyone = FALSE) {
+        if (func_num_args() == 0) {
+            return $this->has_value($this->fieldSet->fieldNames());
+        } elseif (is_array($field_name)) {
+            foreach ($field_name as $a_field_name) {
+                if ($everyone) {
+                    if ( ! $this->has_value($a_field_name)) {
+                        // ANDの場合一つでも存在しなかったらFALSE
+                        return FALSE;
+                    }
+                } elseif ($this->has_value($a_field_name)) {
+                    // ORの場合一つでも存在したらTRUE
+                    return TRUE;
+                }
+            }
+            return !!$everyone;
+        } elseif (is_string($field_name)) {
+            return $this->exists($field_name) ? $this->field($field_name)->hasValue() : FALSE;
+        }
+        return FALSE;
+    }
 
-	/**
-	 *
-	 * @param string[] $exclude_params
-	 * @param string[] $target_params
-	 * @return array
-	 */
-	public function get_queries($exclude_params = null, $target_params = null)
-	{
-		$exclude_params = empty($exclude_params) ? array() : array_flip($exclude_params);
-		$target_params = empty($target_params) ? array() : array_flip($target_params);
-
-		$queries = array();
-		foreach ($this->$fields as $field) {
-			if (isset($exclude_params[$field->name()]) || ($target_params && ! isset($target_params[$field->name()]))) {
-				continue;
-			}
-            $value = $field->value();
-			if ($value !== null and $value !== '') {
-				if ($field->type() == 'checkbox' && $field->value() == 0) {
-					continue;
-				}
-				$queries[$field->name()] = $field->value();
-			}
-		}
-		return $queries;
-	}
-
-	/**
-	 * フォームフィールドの値からクエリ文字列を取得します。
-	 * @param string[] $exclude_params
-	 * @param string[] $target_params
-	 * @return string
-	 */
-	public function get_query_string($exclude_params = null, $target_params = null)
-	{
-		$queries = $this->get_queries($exclude_params, $target_params);
-		return count($queries) ? '?'.http_build_query($queries) : '';
-	}
-
-	/**
-	 * 入力値が存在するかを取得します
-	 * @param string[]|string $field_name
-	 * @param bool $everyone すべてのフィールドに入力がある場合TRUEを返します。配列指定の場合に有効です。
-	 * @return bool
-	 */
-	public function has_value($field_name = null, $everyone = FALSE) {
-		if (func_num_args() == 0)
-		{
-			return $this->has_value(parent::fieldNames());
-		}
-		elseif (is_array($field_name))
-		{
-			foreach ($field_name as $a_field_name)
-			{
-				if ($everyone)
-				{
-					if ( ! $this->has_value($a_field_name))// ANDの場合一つでも存在しなかったらFALSE
-					{
-						return FALSE;
-					}
-				}
-				elseif ($this->has_value($a_field_name))// ORの場合一つでも存在したらTRUE
-				{
-					return TRUE;
-				}
-			}
-			return !!$everyone;
-		}
-		elseif (is_string($field_name))
-		{
-			return $this->exists($field_name) ? $this->field($field_name)->hasValue() : FALSE;
-		}
-		return FALSE;
-	}
-
-	/**
+    /**
 	 * 空文字、NULL以外のフィールド値を取得します
 	 * @param string[]|string $field_name フィールド名:対応するフィールドの値,フィールド名の配列:対応するフィールドの連想配列,NULL:全フィールドの連想配列
 	 * @return array|mixed|null
 	 */
 	public function get_valid_values($field_name = NULL)
 	{
-		/** @var Field $field */
-		if (func_num_args() == 0) // get all
-		{
-			return $this->get_valid_values(parent::fieldNames());
-		}
-		elseif (is_array($field_name))
-		{
+		if (func_num_args() == 0) {
+            return $this->get_valid_values($this->fieldSet->fieldNames());
+		} elseif (is_array($field_name)) {
 			$array = array();
-			foreach ($field_name as $a_field_name)
-			{
-				if ( ! is_null($value = $this->get_valid_values($a_field_name)))
-				{
+			foreach ($field_name as $a_field_name) {
+				if ( ! is_null($value = $this->get_valid_values($a_field_name))) {
 					$array[$a_field_name] = $value;
 				}
 			}
 			return $array;
-		}
-		elseif ( ($field = $this->field($field_name)) !== NULL && $field->hasValue())
-		{
+		} elseif ( ($field = $this->field($field_name)) !== NULL && $field->hasValue()) {
 			return $field->value();
 		}
 		return NULL;
 	}
 
-	public function label($field_name = NULL)
-	{
-		if (is_null($field_name))
-		{
-			return $this->label(parent::fieldNames());
-		}
-		elseif (is_array($field_name))
-		{
-			$array = array();
-			foreach ($field_name as $a_field_name)
-			{
-				if ( ! is_null($label = $this->label($a_field_name)))
-				{
-					$array[$a_field_name] = $label;
-				}
-			}
-			return $array;
-		}
-		if ( ($field = $this->field($field_name)) !== NULL)
-		{
-			return $field->label();
-		}
-		return NULL;
-	}
+    /**
+     * @param string|string[]|null $fieldName
+     * @return array|null|string
+     */
+    public function label($fieldName = null)
+    {
+        if (is_string($fieldName)) {
+            $field = $this->field($fieldName);
+            return $field ? $field->label() : null;
+        }
+        if (is_null($fieldName)) {
+            $fieldName = $this->fieldSet->fieldNames();
+        }
+        $labels = array();
+        foreach ($this->field($fieldName) as $field) {
+            $labels[$field->name()] = $field->label();
+        }
+        return $labels;
+    }
 
 	/**
 	 * フィールドオプションを取得します
@@ -388,24 +373,18 @@ class Form extends FieldSet implements \ArrayAccess
 	 */
 	public function options($field_name = NULL)
 	{
-		if (is_null($field_name))
-		{
-			return $this->options(array_keys($this->_field_list));
-		}
-		elseif (is_array($field_name))
-		{
+		if (is_null($field_name)) {
+            return $this->options($this->fieldSet->fieldNames());
+		} elseif (is_array($field_name)) {
 			$array = array();
-			foreach ($field_name as $a_field_name)
-			{
-				if ( ! is_null($options = $this->options($a_field_name)))
-				{
+			foreach ($field_name as $a_field_name) {
+				if ( ! is_null($options = $this->options($a_field_name))) {
 					$array[$a_field_name] = $options;
 				}
 			}
 			return $array;
 		}
-		if ( ($field = $this->field($field_name)) !== NULL)
-		{
+		if ( ($field = $this->field($field_name)) !== NULL) {
 			return $field->options();
 		}
 		return NULL;
@@ -415,74 +394,75 @@ class Form extends FieldSet implements \ArrayAccess
 	 * フィールドオプションの指定された値のラベルを取得します
 	 * @param string $field_name フィールド名
 	 * @param string $value ラベルを取得する値。指定しない場合現在のフィールド値に対応したラベルを返します
+     * @param mixed $default
 	 * @return mixed
 	 */
-	public function option_label($field_name, $value = NULL)
+	public function option_label($field_name, $value = null, $default = null)
 	{
-		if ( ($field = $this->field($field_name)) !== NULL)
-		{
-			$options = $field->options();
-			if (func_num_args() == 1)
-			{
-				$value = $field->value();
-			}
-			return isset($options[$value]) ? $options[$value] : NULL;
-		}
-		return NULL;
+        $field = $this->field($field_name);
+        return $field ? $field->optionLabel($value, $default) : null;
 	}
 
-	/**
-	 * フィールドのHTMLを取得します
-	 * @param $fieldName
-	 * @return string
-	 */
-	public function toHTML($fieldName = null) {
+    /**
+     * フィールドのHTMLを取得します
+     * @param string|null $fieldName
+     * @param array $attributes
+     * @param bool $addId IDを生成するか.nullの場合はformの設定に準拠する
+     * @return string
+     */
+    public function html($fieldName = null, $attributes = array(), $addId = null)
+    {
         if (is_null($fieldName)) {
-            $fieldName = $this->fieldNames();
+            $fieldName = $this->fieldSet->fieldNames();
         }
         if (is_array($fieldName)) {
             $html = array();
-            foreach ($this->field($fieldName) as $field) {
-                $html[] = $field->html();
+            foreach ($this->field($fieldName) as $key => $field) {
+                $html[] = $field->html($attributes, $addId);
             }
             return implode("\n", $html);
         }
-		$field = $this->field($fieldName);
-		return is_null($field) ? '' : $field->html();
-	}
+        if (!isset($attributes['name'])) {
+            $attributes['name'] = $fieldName;
+            list($fieldName) = explode('[', $fieldName);
+        }
+        $field = $this->field($fieldName);
+        return is_null($field) ? '' : $field->html($attributes);
+    }
 
-	/**
-	 * バリデーション処理をします
-	 * @return bool TRUE:成功
-	 */
-	public function validate()
-	{
-		return $this->validator()->run();
-	}
+    /**
+     * バリデーション処理をします
+     * @return bool TRUE:成功
+     */
+    public function validate()
+    {
+        $this->_errors = array();
+        /** @var Field $field */
+        foreach ($this->fieldSet as $field) {
+            $field->validation();
+            if ( ! $field->validity()) {
+                $this->_errors[$field->name()] = current($field->error());
+            }
+        }
+        return !count($this->_errors);
+    }
 
-	/**
-	 * コントローラのバリデートメソッドと合わせてバリデーションを行います
-	 * @param string|array $func_name
-	 * @return bool
-	 */
-	public function validate_with($func_name)
-	{
-		return $this->validator()->run_with($func_name);
-	}
-
-	/**
-	 * バリデータを取得します
-	 * @return Validator
-	 */
-	public function validator()
-	{
-		if ( ! $this->_validator)
-		{
-			$this->_validator = new FormKit_validator;
-			$this->_validator->add($this->_field_list);
-		}
-		return $this->_validator;
-	}
+    /**
+     * コントローラのバリデートメソッドと合わせてバリデーションを行います
+     * @param callable $func_name
+     * @return bool
+     */
+    public function validate_with($func_name)
+    {
+        if ($this->validate()) {
+            if (is_callable($func_name)) {
+                $func_name($this);
+            } else {
+                FormKit::$strict and trigger_error('parameter 1 must be a callable', E_USER_WARNING);
+            }
+        }
+        return !count($this->_errors);
+    }
 
 	/**
 	 * エラーメッセージ
@@ -504,7 +484,7 @@ class Form extends FieldSet implements \ArrayAccess
 			}
 			return empty($array) ? NULL : $array;
 		}
-		elseif ( ($message = $this->validator()->last_error_message($field_name)))
+		elseif ( ($message = $this->errors($field_name)))
 		{
 			if ($formatting && $this->_config_error_msg_format && $this->_config_error_msg_placeholder)
 			{
@@ -566,66 +546,4 @@ class Form extends FieldSet implements \ArrayAccess
 		}
 		return NULL;
 	}
-
-    /**
-     * (PHP 5 &gt;= 5.0.0)<br/>
-     * Whether a offset exists
-     * @link http://php.net/manual/en/arrayaccess.offsetexists.php
-     * @param mixed $offset <p>
-     * An offset to check for.
-     * </p>
-     * @return boolean true on success or false on failure.
-     * </p>
-     * <p>
-     * The return value will be casted to boolean if non-boolean was returned.
-     */
-    public function offsetExists($offset)
-    {
-        // TODO: Implement offsetExists() method.
-    }
-
-    /**
-     * (PHP 5 &gt;= 5.0.0)<br/>
-     * Offset to retrieve
-     * @link http://php.net/manual/en/arrayaccess.offsetget.php
-     * @param mixed $offset <p>
-     * The offset to retrieve.
-     * </p>
-     * @return mixed Can return all value types.
-     */
-    public function offsetGet($offset)
-    {
-        // TODO: Implement offsetGet() method.
-    }
-
-    /**
-     * (PHP 5 &gt;= 5.0.0)<br/>
-     * Offset to set
-     * @link http://php.net/manual/en/arrayaccess.offsetset.php
-     * @param mixed $offset <p>
-     * The offset to assign the value to.
-     * </p>
-     * @param mixed $value <p>
-     * The value to set.
-     * </p>
-     * @return void
-     */
-    public function offsetSet($offset, $value)
-    {
-        // TODO: Implement offsetSet() method.
-    }
-
-    /**
-     * (PHP 5 &gt;= 5.0.0)<br/>
-     * Offset to unset
-     * @link http://php.net/manual/en/arrayaccess.offsetunset.php
-     * @param mixed $offset <p>
-     * The offset to unset.
-     * </p>
-     * @return void
-     */
-    public function offsetUnset($offset)
-    {
-        // TODO: Implement offsetUnset() method.
-    }
 }
